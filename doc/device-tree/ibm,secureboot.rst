@@ -21,6 +21,13 @@ Required properties
                                               It described by the ibm,cvc child
                                               node.
 
+                        ibm,secureboot-v3  :  The container-verification-code
+                                              is stored in a reserved memory.
+                                              It described by the ibm,cvc child
+                                              node. Secure variables are
+                                              supported. `secvar` node should
+                                              be created.
+
     secure-enabled:     this property exists when the firmware stack is booting
                         in secure mode (hardware secure boot jumper asserted).
 
@@ -33,6 +40,9 @@ Required properties
 
     hw-key-hash-size:   hw-key-hash size
 
+    secvar:             this node is created if the platform supports secure
+                        variables. Contains information about the current
+                        secvar status, see 'secvar.rst'.
 
 Obsolete properties
 -------------------
