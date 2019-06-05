@@ -37,6 +37,7 @@ struct secvar_backend_driver {
         char compatible[32];			// String to use for compatible in secvar node
 };
 
+extern struct secvar_storage_driver secboot_tpm_driver;
 
 int secvar_main(struct secvar_storage_driver, struct secvar_backend_driver);
 
