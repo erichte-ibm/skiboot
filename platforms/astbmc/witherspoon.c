@@ -17,6 +17,9 @@
 #include <npu2.h>
 #include <occ.h>
 #include <i2c.h>
+#include <secvar.h>
+#include "libstb/secvar/secvar_tpmnv.h"
+#include "libstb/secvar/storage/secboot_tpm.h"
 
 #include "astbmc.h"
 #include "ast.h"
@@ -506,6 +509,15 @@ static void witherspoon_finalise_dt(bool is_reboot)
 	}
 }
 
+static int witherspoon_secvar_init(void)
+{
+	// REMOVE THESE TO USE ACTUAL TPM
+//	tpm_fake_nv = 1;
+//	tpm_fake_nv_offset = sizeof(struct secboot);
+
+        return secvar_main(secboot_tpm_driver, edk2_compatible_v1);
+}
+
 /* The only difference between these is the PCI slot handling */
 
 DECLARE_PLATFORM(witherspoon) = {
@@ -527,4 +539,5 @@ DECLARE_PLATFORM(witherspoon) = {
 	.ocapi                  = &witherspoon_ocapi,
 	.npu2_device_detect	= witherspoon_npu2_device_detect,
 	.op_display		= op_display_lpc,
+	.secvar_init		= witherspoon_secvar_init,
 };
