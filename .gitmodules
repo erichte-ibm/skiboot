@@ -1,0 +1,4 @@
+[submodule "libstb/crypto/mbedtls"]
+	path = libstb/crypto/mbedtls
+	url = https://github.com/ARMmbed/mbedtls
+	branch = mbedtls-2.16
