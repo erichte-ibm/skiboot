@@ -10,8 +10,11 @@ LIBSTB = $(LIBSTB_DIR)/built-in.a
 
 include $(SRC)/$(LIBSTB_DIR)/drivers/Makefile.inc
 include $(SRC)/$(LIBSTB_DIR)/tss/Makefile.inc
+include $(SRC)/$(LIBSTB_DIR)/crypto/Makefile.inc
 
-$(LIBSTB): $(LIBSTB_OBJS:%=$(LIBSTB_DIR)/%) $(DRIVERS) $(TSS) $(MBEDTLS)
+CPPFLAGS += -I$(SRC)/$(LIBSTB_DIR)/crypto/mbedtls/include
+
+$(LIBSTB): $(LIBSTB_OBJS:%=$(LIBSTB_DIR)/%) $(DRIVERS) $(TSS) $(CRYPTO)
 
 libstb/create-container: libstb/create-container.c libstb/container-utils.c
 	$(call Q, HOSTCC ,$(HOSTCC) $(HOSTCFLAGS) \
