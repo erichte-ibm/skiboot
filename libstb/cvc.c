@@ -268,7 +268,7 @@ int cvc_init(void)
 		rc = cvc_secure_rom_init();
 	} else if (version == IBM_SECUREBOOT_SOFTROM) {
 		softrom = true;
-	} else if (version == IBM_SECUREBOOT_V2) {
+	} else if ((version == IBM_SECUREBOOT_V2 ) || (version == IBM_SECUREBOOT_V3)) {
 		rc = cvc_reserved_mem_init(node);
 	} else {
 		prlog(PR_ERR, "%s FAILED. /ibm,secureboot not supported\n",

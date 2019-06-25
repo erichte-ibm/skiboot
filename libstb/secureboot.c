@@ -25,6 +25,7 @@ static struct {
 	{ IBM_SECUREBOOT_V1, "ibm,secureboot-v1" },
 	{ IBM_SECUREBOOT_SOFTROM, "ibm,secureboot-v1-softrom" },
 	{ IBM_SECUREBOOT_V2, "ibm,secureboot-v2" },
+	{ IBM_SECUREBOOT_V3, "ibm,secureboot-v3" },
 };
 
 static void secureboot_enforce(void)
@@ -124,7 +125,8 @@ void secureboot_init(void)
 		}
 		hw_key_hash_size = SHA512_DIGEST_LENGTH;
 
-	} else if (version == IBM_SECUREBOOT_V2) {
+	} else if (version == IBM_SECUREBOOT_V2 ||
+		   version == IBM_SECUREBOOT_V3) {
 
 		hw_key_hash_size = dt_prop_get_u32(node, "hw-key-hash-size");
 		if (hw_key_hash_size == 0) {
@@ -157,6 +159,9 @@ void secureboot_init(void)
 	if (cvc_init())
 		secureboot_enforce();
 
+	if (version == IBM_SECUREBOOT_V3) {
+		platform.secvar_init();
+	}
 	secure_init = true;
 }
 

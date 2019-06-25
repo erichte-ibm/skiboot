@@ -35,6 +35,7 @@
 #include <xive.h>
 #include <nvram.h>
 #include <vas.h>
+#include <libstb/secvar/secvar.h>
 #include <libstb/secureboot.h>
 #include <libstb/trustedboot.h>
 #include <phys-map.h>
@@ -1162,6 +1163,9 @@ void __noreturn __nomcount main_cpu_entry(const void *fdt)
 
 	/* Set the console level */
 	console_log_level();
+
+	/* Check for secvar support, update secureboot compatible if so */
+	probe_secvar();
 
 	/* Secure/Trusted Boot init. We look for /ibm,secureboot in DT */
 	secureboot_init();
