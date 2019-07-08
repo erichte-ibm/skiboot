@@ -1,0 +1,133 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>P9 memory hierarchy &#8212; skiboot v6.4-rc1
+ documentation</title>
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Nvlink Device Tree Bindings" href="nvlink.html" />
+    <link rel="prev" title="IMC Device Tree Bindings" href="imc.html" /> 
+  </head><body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="nvlink.html" title="Nvlink Device Tree Bindings"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="imc.html" title="IMC Device Tree Bindings"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skiboot v6.4-rc1
+ documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Device Tree</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="p9-memory-hierarchy">
+<h1>P9 memory hierarchy<a class="headerlink" href="#p9-memory-hierarchy" title="Permalink to this headline">¶</a></h1>
+<p>P9 Nimbus supports direct attached DDR memory through 4 DDR ports per side
+of the processor. Device tree contains memory hierarchy so that one can
+traverse from chip to DIMM like below:</p>
+<blockquote>
+<div>xscom&#64;&lt;addr&gt;/mcbist&#64;&lt;mcbist_id&gt;/mcs&#64;&lt;mcs_id&gt;/mca&#64;&lt;mca_id&gt;/dimm&#64;&lt;resource_id&gt;</div></blockquote>
+<p>Example of dimm node:
+.. code-block:: dts</p>
+<blockquote>
+<div><dl class="docutils">
+<dt><a class="reference external" href="mailto:dimm&#37;&#52;&#48;d00e">dimm<span>&#64;</span>d00e</a> {</dt>
+<dd>memory-id = &lt;0xc&gt;; /* DRAM Device Type. 0xc = DDR4 <em>/
+product-version = &lt;0x32&gt;; /</em> Module Revision Code <em>/
+device_type = “memory-dimm-ddr4”;
+serial-number = &lt;0x15d9ad1c&gt;;
+status = “okay”;
+size = &lt;0x4000&gt;;
+phandle = &lt;0xd2&gt;;
+ibm,loc-code = “UOPWR.0000000-Node0-DIMM14”;
+part-number = “36ASF2G72PZ-2G6B2   “;
+reg = &lt;0xd00e&gt;;
+manufacturer-id = &lt;0x802c&gt;; /</em> Vendor ID, we can get vendor name from this ID <a href="#id1"><span class="problematic" id="id2">*</span></a>/</dd>
+</dl>
+<p>};</p>
+</div></blockquote>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="imc.html"
+                        title="previous chapter">IMC Device Tree Bindings</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="nvlink.html"
+                        title="next chapter">Nvlink Device Tree Bindings</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/device-tree/memory-hierarchy.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="nvlink.html" title="Nvlink Device Tree Bindings"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="imc.html" title="IMC Device Tree Bindings"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skiboot v6.4-rc1
+ documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" >Device Tree</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016-2017, IBM, others.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.8.5.
+    </div>
+  </body>
+</html>
