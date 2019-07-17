@@ -13,6 +13,7 @@ include $(SRC)/$(LIBSTB_DIR)/tss/Makefile.inc
 include $(SRC)/$(LIBSTB_DIR)/crypto/Makefile.inc
 
 CPPFLAGS += -I$(SRC)/$(LIBSTB_DIR)/crypto/mbedtls/include
+CPPFLAGS += -I$(SRC)/$(LIBSTB_DIR)/crypto/include
 
 $(LIBSTB): $(LIBSTB_OBJS:%=$(LIBSTB_DIR)/%) $(DRIVERS) $(TSS) $(CRYPTO)
 
