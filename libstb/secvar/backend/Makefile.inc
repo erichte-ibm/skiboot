@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # -*-Makefile-*-
 
-SECVAR_BACKEND_DIR = libstb/secvar/backend
+SECVAR_BACKEND_DIR = $(SRC)/libstb/secvar/backend
 
 SUBDIRS += $(SECVAR_BACKEND_DIR)
 
-SECVAR_BACKEND_SRCS =
+SECVAR_BACKEND_SRCS = ./edk2-compat/edk2-compat.c
 SECVAR_BACKEND_OBJS = $(SECVAR_BACKEND_SRCS:%.c=%.o)
 SECVAR_BACKEND = $(SECVAR_BACKEND_DIR)/built-in.a
+
+SUBDIRS += $(SECVAR_BACKEND_DIR)/edk2-compat
 
 $(SECVAR_BACKEND): $(SECVAR_BACKEND_OBJS:%=$(SECVAR_BACKEND_DIR)/%)
