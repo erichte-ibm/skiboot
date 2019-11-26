@@ -123,19 +123,6 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 }
 
 
-static int secboot_write_to_pnor(struct list_head *bank, char *target, size_t max_size)
-{
-	if (!platform.secboot_write) {
-		prlog(PR_ERR, "Failed to write: platform.secboot_write not set\n");
-		return -1;
-	}
-
-	memset(target, 0, max_size);
-
-	return secboot_serialize_bank(bank, target, max_size, 0);
-}
-
-
 static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t max_size)
 {
 	char *src;
@@ -181,17 +168,28 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 
 			// Calculate the bank hash, and write to TPM NV
 			rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
+			if (rc)
+				break;
+
 			calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
 			rc = secvar_tpmnv_write(GET_HASH_BANK_ID(bit), bank_hash, SHA256_DIGEST_LENGTH, 0);
+			if (rc)
+				break;
 
 			// Write new variable bank to pnor
 			rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
+			if (rc)
+				break;
 
 			// Flip the bit, and write to TPM NV
 			rc = secvar_tpmnv_write(TPMNV_ID_ACTIVE_BIT, &bit, sizeof(bit), 0);
 			break;
 		case SECVAR_UPDATE_BANK:
-			rc = secboot_write_to_pnor(bank, secboot_image->update, SECBOOT_UPDATE_BANK_SIZE);
+			memset(secboot_image->update, 0, SECBOOT_UPDATE_BANK_SIZE);
+			rc = secboot_serialize_bank(bank, secboot_image->update, SECBOOT_UPDATE_BANK_SIZE, 0);
+			if (rc)
+				break;
+
 			rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
 			break;
 		default:
