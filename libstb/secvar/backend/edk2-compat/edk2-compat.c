@@ -395,7 +395,6 @@ static int verify_signature(void *auth_buffer, char *newcert,
 	int rc;
 	char *errbuf;
 
-	//auth = (struct efi_variable_authentication_2 *) auth_buffer;
 	auth = auth_buffer;
 
 	len  = get_pkcs7_len(auth);
