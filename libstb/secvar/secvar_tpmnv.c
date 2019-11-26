@@ -5,8 +5,7 @@
 //#include <tssskiboot.h>
 
 #define TPM_SECVAR_NV_INDEX	0x01c10191
-// Arbitrary at the moment, we should pick a better one
-#define TPM_SECVAR_MAGIC_NUM	0x39080394
+#define TPM_SECVAR_MAGIC_NUM	0x53544e56
 
 struct tpm_nv_id {
 	uint32_t id;
