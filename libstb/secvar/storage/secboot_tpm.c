@@ -280,7 +280,8 @@ static int secboot_tpm_store_init(void)
 		goto out_free;
 	}
 
-	if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
+	if ((secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER)
+	     || tpm_first_init ) {
 		prlog(PR_INFO, "Formatting secboot partition...\n");
 		rc = secboot_format();
 		if (rc) {
