@@ -94,7 +94,7 @@ static int secboot_format(void)
 	return platform.secboot_write(0, secboot_image, sizeof(struct secboot));
 }
 
-
+// Flattens a linked-list bank into a contiguous buffer for writing
 static int secboot_serialize_bank(struct list_head *bank, char *target, size_t target_size, int flags)
 {
 	struct secvar_node *node;
@@ -173,12 +173,12 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 	uint64_t bit;
 	char bank_hash[SHA256_DIGEST_LENGTH];
 
-	secvar_tpmnv_read(TPMNV_ID_ACTIVE_BIT, &bit, sizeof(bit), 0);
-
-	bit = CYCLE_BIT(bit);
-
 	switch(section) {
 		case SECVAR_VARIABLE_BANK:
+			// Get the current bit and flip it
+			secvar_tpmnv_read(TPMNV_ID_ACTIVE_BIT, &bit, sizeof(bit), 0);
+			bit = CYCLE_BIT(bit);
+
 			// Calculate the bank hash, and write to TPM NV
 			rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
 			calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
