@@ -80,7 +80,7 @@ static int secboot_format(void)
 	char bank_hash[SHA256_DIGEST_LENGTH];
 
 	if (!platform.secboot_write)
-		return -1;
+		return OPAL_UNSUPPORTED;
 
 	memset(secboot_image, 0x00, sizeof(struct secboot));
 
@@ -101,9 +101,9 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 	char *tmp = target;
 
 	if (!bank)
-		return -1;
+		return OPAL_INTERNAL_ERROR;
 	if (!target)
-		return -1;
+		return OPAL_INTERNAL_ERROR;
 
 	list_for_each(bank, node, link) {
 		if (node->flags != flags)
@@ -111,7 +111,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 
 		// Bail early if we are out of storage space
 		if ((target - tmp) + sizeof(struct secvar) + node->var->data_size > target_size) {
-			return -1;
+			return OPAL_EMPTY;
 		}
 		
 		memcpy(target, node->var, sizeof(struct secvar) + node->var->data_size);
@@ -119,7 +119,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 		target += sizeof(struct secvar) + node->var->data_size;
 	}
 
-	return 0;
+	return OPAL_SUCCESS;
 }
 
 
@@ -141,7 +141,7 @@ static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t m
 		tmp = alloc_secvar(hdr->data_size);
 		if (!tmp) {
 			prlog(PR_ERR, "Could not allocate memory for loading secvar from image\n");
-			return -1;
+			return OPAL_NO_MEM;
 		}
 
 		memcpy(tmp->var, src, sizeof(struct secvar) + hdr->data_size);
@@ -150,7 +150,7 @@ static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t m
 		src += sizeof(struct secvar) + hdr->data_size;
 	}
 
-	return 0;
+	return OPAL_SUCCESS;
 }
 
 
@@ -239,10 +239,10 @@ static int secboot_tpm_store_init(void)
 
 	// Already initialized
 	if (secboot_image)
-		return 0;
+		return OPAL_SUCCESS;
 
 	if (!platform.secboot_info)
-		return -1;
+		return OPAL_UNSUPPORTED;
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
@@ -251,24 +251,24 @@ static int secboot_tpm_store_init(void)
 	rc |= secvar_tpmnv_alloc(TPMNV_ID_HASH_BANK_1, SHA256_DIGEST_LENGTH);
 	if (rc) {
 		prlog(PR_ERR, "unable to alloc or find the tpmnv space\n");
-		return -1;
+		return rc;
 	}
 
 	rc = platform.secboot_info(&secboot_size);
 	if (rc) {
 		prlog(PR_ERR, "error %d retrieving keystore info\n", rc);
-		return -1;
+		return rc;
 	}
 	if (sizeof(struct secboot) > secboot_size) {
 		prlog(PR_ERR, "secboot partition %d KB too small. min=%ld\n",
 		      secboot_size >> 10, sizeof(struct secboot));
-		return -1;
+		return OPAL_RESOURCE;
 	}
 
 	secboot_image = memalign(0x1000, sizeof(struct secboot));
 	if (!secboot_image) {
 		prlog(PR_ERR, "Failed to allocate space for the secboot image\n");
-		return -1;
+		return OPAL_NO_MEM;
 	}
 
 	/* Read it in */
@@ -288,7 +288,7 @@ static int secboot_tpm_store_init(void)
 		}
 	}
 
-	return 0;
+	return OPAL_SUCCESS;
 
 out_free:
 	if (secboot_image) {
@@ -296,7 +296,7 @@ out_free:
 		secboot_image = NULL;
 	}
 
-	return -1;
+	return rc;
 }
 
 struct secvar_storage_driver secboot_tpm_driver = {
