@@ -44,7 +44,6 @@
 // Because mbedtls doesn't define this?
 #define SHA256_DIGEST_LENGTH	32
 
-
 /* 0x5053424b = "PSBK" or Power Secure Boot Keystore */
 #define SECBOOT_MAGIC_NUMBER	0x5053424b
 #define SECBOOT_VERSION		1
@@ -55,16 +54,18 @@ struct secboot_header {
 	uint8_t reserved[3];	// Fix alignment
 } __packed;
 
-
 struct secboot {
 	struct secboot_header header;
 	char bank[SECBOOT_VARIABLE_BANK_NUM][SECBOOT_VARIABLE_BANK_SIZE];
 	char update[SECBOOT_UPDATE_BANK_SIZE];
 } __packed;
-#define _secboot_header_ // TODO: delete this with tss, move to header if long term
+
+// TODO: This should be deleted when the TSS is added
+// Only here to fix a collision that occurs in the test case where the
+// temporary copy of the above in secvar_tpmnv.c conflicts
+#define _secboot_header_
 
 struct secboot *secboot_image;
-
 
 static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 {
