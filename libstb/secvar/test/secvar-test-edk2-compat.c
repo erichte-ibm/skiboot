@@ -31,7 +31,6 @@ int run_test()
 {
 	int rc = -1;
 	struct secvar_node *tmp;
-	int i;
 	int keksize;
 	int dbsize;
 
