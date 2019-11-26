@@ -20,6 +20,7 @@ struct tpm_nv {
 };
 
 int tpm_ready = 0;
+int tpm_first_init = 0;
 struct tpm_nv *tpm_image;
 size_t tpm_nv_size = 0;
 
@@ -48,6 +49,8 @@ static int secvar_tpmnv_format(void)
 
 	tpm_image->magic_num = TPM_SECVAR_MAGIC_NUM;
 	tpm_image->version = 1;
+
+	tpm_first_init = 1;
 
 	return platform.secboot_write(sizeof(struct secboot), tpm_image, tpm_nv_size);
 }
