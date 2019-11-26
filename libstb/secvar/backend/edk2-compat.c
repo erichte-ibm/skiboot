@@ -39,9 +39,9 @@
 #include "libstb/crypto/pkcs7/pkcs7.h"
 #include "edk2.h"
 #include "opal-api.h"
-#include "../../secvar.h"
-#include "../../secvar_devtree.h"
-#include "../../secvar_tpmnv.h"
+#include "../secvar.h"
+#include "../secvar_devtree.h"
+#include "../secvar_tpmnv.h"
 #include <mbedtls/error.h>
 
 #define TPMNV_ID_EDK2_PK	0xd1e81f2c
