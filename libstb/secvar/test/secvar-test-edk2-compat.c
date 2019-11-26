@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 #include "secvar_common_test.c"
-#include "../backend/edk2-compat/edk2-compat.c"
+#include "../backend/edk2-compat.c"
 #include "../secvar_util.c"
 #include "../secvar_tpmnv.c"
 #include "../../crypto/pkcs7/pkcs7.c"
