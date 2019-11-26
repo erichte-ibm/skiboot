@@ -108,27 +108,30 @@ static struct tpm_nv_id *find_tpmnv_id(uint32_t id)
 int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 {
 	struct tpm_nv_id *cur;
+	char *end;
 
 	if (secvar_tpmnv_init())
 		return OPAL_RESOURCE;
 
-	for (cur = tpm_image->vars;
-	     (char *) cur < ((char *) tpm_image) + tpm_nv_size;
-	     cur += sizeof(struct tpm_nv_id) + cur->size) {
+	cur = tpm_image->vars;
+	end = ((char *) cur) + tpm_nv_size;
+	while ((char *) cur < end) {
 		if (cur->id == 0)
-			break;
+			goto allocate;
 		if (cur->id == id)
 			return OPAL_SUCCESS; // Already allocated
-	}
 
+	     cur += sizeof(struct tpm_nv_id) + cur->size;
+	}
+	// We ran out of space...
+	return OPAL_EMPTY;
+
+allocate:
 	// Special case: size of -1 gives remaining space
 	if (size == -1) {
 		cur->id = id;
 		cur->size = tpm_nv_size - (cur - tpm_image->vars);
 	}
-
-	if ((((char *) cur) + size) - (char *) tpm_image > tpm_nv_size) 
-		return -2;
 
 	cur->id = id;
 	cur->size = size;
