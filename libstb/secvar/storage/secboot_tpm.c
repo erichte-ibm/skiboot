@@ -303,5 +303,5 @@ struct secvar_storage_driver secboot_tpm_driver = {
 	.load_bank = secboot_tpm_load_bank,
 	.write_bank = secboot_tpm_write_bank,
 	.store_init = secboot_tpm_store_init,
-	.max_var_size = 4096,	// Arbitrary, probably could be larger
+	.max_var_size = 8192,
 };
