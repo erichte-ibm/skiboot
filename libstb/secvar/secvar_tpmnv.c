@@ -1,3 +1,4 @@
+#include <opal.h>
 #include <skiboot.h>
 #include <string.h>
 #include "secvar_tpmnv.h"
@@ -24,7 +25,9 @@ int tpm_first_init = 0;
 struct tpm_nv *tpm_image;
 size_t tpm_nv_size = 0;
 
-// Here just for size purposes, delete when using TSS
+// These are borrowed from secboot_tpm.c, for the temporary, pnor-based
+// TPM NV storage backing. They should be removed when this file uses
+// the actual TPM and TSS
 #define SECBOOT_VARIABLE_BANK_SIZE      32000
 #define SECBOOT_UPDATE_BANK_SIZE        32000
 #define SECBOOT_VARIABLE_BANK_NUM       2
@@ -59,7 +62,7 @@ static int secvar_tpmnv_format(void)
 static int secvar_tpmnv_init(void)
 {
 	if (tpm_ready)
-		return 0;
+		return OPAL_SUCCESS;
 
 	// Check if defined, if so, load
 	// and set tpm_nv_size
@@ -70,17 +73,17 @@ static int secvar_tpmnv_init(void)
 
 	tpm_image = malloc(tpm_nv_size);
 	if (!tpm_image)
-		return -1;
+		return OPAL_NO_MEM;
 
 	// TEMP use pnor space for now, stored after the secboot sections
 	if (platform.secboot_read(tpm_image, sizeof(struct secboot), tpm_nv_size))
-		return -1;
+		return OPAL_HARDWARE;
 	if (tpm_image->magic_num != TPM_SECVAR_MAGIC_NUM)
-		secvar_tpmnv_format();
-
+		if(secvar_tpmnv_format())
+			return OPAL_HARDWARE;
 	tpm_ready = 1;
 
-	return 0;
+	return OPAL_SUCCESS;
 }
 
 
@@ -106,19 +109,18 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 {
 	struct tpm_nv_id *cur;
 
-	if (!tpm_ready && secvar_tpmnv_init())
-		return -1;
+	if (secvar_tpmnv_init())
+		return OPAL_RESOURCE;
 
 	for (cur = tpm_image->vars;
 	     (char *) cur < ((char *) tpm_image) + tpm_nv_size;
 	     cur += sizeof(struct tpm_nv_id) + cur->size) {
 		if (cur->id == 0)
-			goto allocate;
+			break;
 		if (cur->id == id)
-			return 0; // Already allocated
+			return OPAL_SUCCESS; // Already allocated
 	}
 
-allocate:
 	// Special case: size of -1 gives remaining space
 	if (size == -1) {
 		cur->id = id;
@@ -131,7 +133,7 @@ allocate:
 	cur->id = id;
 	cur->size = size;
 
-	return 0;
+	return OPAL_SUCCESS;
 }
 
 
@@ -139,12 +141,12 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 {
 	struct tpm_nv_id *var;
 
-	if (!tpm_ready && secvar_tpmnv_init())
-		return -1;
+	if (secvar_tpmnv_init())
+		return OPAL_RESOURCE;
 
 	var = find_tpmnv_id(id);
 	if (!var)
-		return -1;
+		return OPAL_EMPTY;
 	
 	size = MIN(size, var->size);
 	memcpy(buf + off, var->data, size);
@@ -157,12 +159,12 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 {
 	struct tpm_nv_id *var;
 
-	if (!tpm_ready && secvar_tpmnv_init())
-		return -1;
+	if (secvar_tpmnv_init())
+		return OPAL_RESOURCE;
 
 	var = find_tpmnv_id(id);
 	if (!var)
-		return -1;
+		return OPAL_EMPTY;
 
 	size = MIN(size, var->size);
 	memcpy(var->data, buf + off, size);
@@ -172,12 +174,12 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 	return 0;
 }
 
-uint32_t secvar_tpmnv_size(uint32_t id)
+int secvar_tpmnv_size(uint32_t id)
 {
 	struct tpm_nv_id *var;
 
-	if (!tpm_ready && secvar_tpmnv_init())
-		return -1;
+	if (secvar_tpmnv_init())
+		return OPAL_RESOURCE;
 
 	var = find_tpmnv_id(id);
 	if (!var)
