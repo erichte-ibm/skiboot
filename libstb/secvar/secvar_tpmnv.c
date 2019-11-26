@@ -4,6 +4,8 @@
 //#include <tssskiboot.h>
 
 #define TPM_SECVAR_NV_INDEX	0x01c10191
+// Arbitrary at the moment, we should pick a better one
+#define TPM_SECVAR_MAGIC_NUM	0x39080394
 
 struct tpm_nv_id {
 	uint32_t id;
@@ -38,6 +40,18 @@ struct secboot {
 } __packed;
 #endif
 
+// This function should probably be replaced with TPM NV index reserving
+// and first-write logic.
+static int secvar_tpmnv_format(void)
+{
+	memset(tpm_image, 0, sizeof(tpm_nv_size));
+
+	tpm_image->magic_num = TPM_SECVAR_MAGIC_NUM;
+	tpm_image->version = 1;
+
+	return platform.secboot_write(sizeof(struct secboot), tpm_image, tpm_nv_size);
+}
+
 
 static int secvar_tpmnv_init(void)
 {
@@ -51,13 +65,15 @@ static int secvar_tpmnv_init(void)
 
 	tpm_nv_size = 1024;
 
-	tpm_image = zalloc(tpm_nv_size);
+	tpm_image = malloc(tpm_nv_size);
 	if (!tpm_image)
 		return -1;
 
 	// TEMP use pnor space for now, stored after the secboot sections
 	if (platform.secboot_read(tpm_image, sizeof(struct secboot), tpm_nv_size))
 		return -1;
+	if (tpm_image->magic_num != TPM_SECVAR_MAGIC_NUM)
+		secvar_tpmnv_format();
 
 	tpm_ready = 1;
 
