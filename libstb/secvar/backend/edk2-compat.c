@@ -76,23 +76,20 @@ static bool key_equals(const char *key1, const char *key2)
 /**
  * Returns the authority that can sign the given key update
  */
-static const char **get_key_authority(const char *key)
+static void get_key_authority(const char *ret[3], const char *key)
 {
-	const char **authkey;
 	int i = 0;
 
-	authkey = zalloc(sizeof(char *) * 3);
+	memset(ret, 0, sizeof(char *) * 3);
 	if (key_equals(key, "PK"))
-		authkey[i++] = "PK";
+		ret[i++] = "PK";
 	if (key_equals(key, "KEK"))
-		authkey[i++] = "PK";
+		ret[i++] = "PK";
 	if (key_equals(key, "db") || key_equals(key, "dbx")) {
-		authkey[i++] = "KEK";
-		authkey[i++] = "PK";
+		ret[i++] = "KEK";
+		ret[i++] = "PK";
 	}
-	authkey[i] = NULL;
-
-	return authkey;
+	ret[i] = NULL;
 }
 
 /*
@@ -513,7 +510,7 @@ static int edk2_compat_process(void)
 	char *auth_buffer = NULL;
 	uint64_t auth_buffer_size = 0;
 	char *timestamp = NULL;
-	const char **key_authority;
+	const char *key_authority[3];
 	char *newesl = NULL;
 	uint64_t new_data_size = 0;
 	char *tbhbuffer = NULL;
@@ -561,7 +558,7 @@ static int edk2_compat_process(void)
 						&tbhbuffersize, timestamp);
 		
 			/* Get the authority to verify the signature */
-			key_authority = get_key_authority(node->var->key);
+			get_key_authority(key_authority, node->var->key);
 			i = 0;
 
 			/* Try for all the authorities that are allowed to sign.
