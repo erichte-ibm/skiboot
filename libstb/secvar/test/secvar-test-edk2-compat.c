@@ -25,18 +25,20 @@ const char *secvar_test_name = "edk2-compat";
 
 struct platform platform;
 
-
-#define ARBITRARY_SECBOOT_SIZE 128000
+// Change to TSS-intercepting wrappers
+#define ARBITRARY_TPMNV_SIZE 2048
 char *secboot_buffer;
 static int secboot_read(void *dst, uint32_t src, uint32_t len)
 {
-	memcpy(dst, secboot_buffer + src, len);
+	(void) src; // Don't need to use offset here
+	memcpy(dst, secboot_buffer, len);
 	return 0;
 }
 
 static int secboot_write(uint32_t dst, void *src, uint32_t len)
 {
-	memcpy(secboot_buffer + dst, src, len);
+	(void) dst;
+	memcpy(secboot_buffer, src, len);
 	return 0;
 }
 
@@ -195,7 +197,7 @@ int main(void)
 	// TODO: Change to TSS stubs when this matters
 	platform.secboot_read = secboot_read;
 	platform.secboot_write = secboot_write;
-	secboot_buffer = zalloc(ARBITRARY_SECBOOT_SIZE);
+	secboot_buffer = zalloc(ARBITRARY_TPMNV_SIZE);
 
 	proc_gen = proc_gen_p9;
 	rc = run_test();
