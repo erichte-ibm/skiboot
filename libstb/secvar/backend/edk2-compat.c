@@ -155,10 +155,13 @@ static int edk2_p9_write_pk(void)
 		return OPAL_RESOURCE;
 
 	tmp = zalloc(tmpsize);
+	if (!tmp)
+		return OPAL_NO_MEM;
 
 	memcpy(tmp, &pkvar->var->data_size, sizeof(pkvar->var->data_size));
 	tmp += sizeof(pkvar->var->data_size);
 	memcpy(tmp, pkvar->var->data, pkvar->var->data_size);
+	tmpsize = pkvar->var->data_size + sizeof(pkvar->var->data_size);
 
 	return secvar_tpmnv_write(TPMNV_ID_EDK2_PK, tmp, tmpsize, 0);
 }
