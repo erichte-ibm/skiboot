@@ -130,7 +130,7 @@ allocate:
 
 	// Special case: size of -1 gives remaining space
 	if (size == -1)
-		cur->size = end - (char*) cur;
+		cur->size = end - cur->data;
 	else
 		cur->size = size;
 
