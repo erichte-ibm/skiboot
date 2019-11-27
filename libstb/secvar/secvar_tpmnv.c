@@ -89,7 +89,7 @@ static int secvar_tpmnv_init(void)
 static struct tpm_nv_id *find_tpmnv_id(uint32_t id)
 {
 	struct tpm_nv_id *cur;
-	
+
 	for (cur = tpm_image->vars;
 	     (char *) cur < ((char *) tpm_image) + tpm_nv_size;
 	     cur += sizeof(struct tpm_nv_id) + cur->size) {
@@ -113,7 +113,7 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 		return OPAL_RESOURCE;
 
 	cur = tpm_image->vars;
-	end = ((char *) cur) + tpm_nv_size;
+	end = ((char *) tpm_image) + tpm_nv_size;
 	while ((char *) cur < end) {
 		if (cur->id == 0)
 			goto allocate;
@@ -126,14 +126,13 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 	return OPAL_EMPTY;
 
 allocate:
-	// Special case: size of -1 gives remaining space
-	if (size == -1) {
-		cur->id = id;
-		cur->size = tpm_nv_size - (cur - tpm_image->vars);
-	}
-
 	cur->id = id;
-	cur->size = size;
+
+	// Special case: size of -1 gives remaining space
+	if (size == -1)
+		cur->size = end - (char*) cur;
+	else
+		cur->size = size;
 
 	return OPAL_SUCCESS;
 }
@@ -149,7 +148,7 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 	var = find_tpmnv_id(id);
 	if (!var)
 		return OPAL_EMPTY;
-	
+
 	size = MIN(size, var->size);
 	memcpy(buf + off, var->data, size);
 
