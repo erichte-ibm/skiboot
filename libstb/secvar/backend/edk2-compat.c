@@ -474,7 +474,7 @@ static int get_data_to_verify(char *key, char *new_data,
 		char **buffer,
 		uint64_t *buffer_size, char *timestamp)
 {
-	uint32_t attr = SECVAR_ATTRIBUTES;
+	le32 attr = cpu_to_le32(SECVAR_ATTRIBUTES);
 	int size = 0;
 	int varlen;
 	char *wkey;
@@ -542,6 +542,7 @@ static int edk2_compat_process(void)
 		/* Submitted data is auth_2 descriptor + new ESL data
 		 * Extract the auth_2 2 descriptor
 		 */
+		prlog(PR_INFO, "update for %s\n", node->var->key);
 		auth_buffer_size = get_auth_descriptor2(node->var->data, &auth_buffer);
 		if (auth_buffer_size <= 0)
 			return OPAL_PARAMETER;
@@ -611,6 +612,7 @@ static int edk2_compat_process(void)
 		 * system at the end of processing */
 		if (key_equals(node->var->key, "PK")) {
 			pk_updated = 1;
+			setupmode = 0;
 		}
 	}
 
