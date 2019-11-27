@@ -151,6 +151,8 @@ static int edk2_p9_write_pk(void)
 		return OPAL_RESOURCE;
 	if (tmpsize < pkvar->var->data_size + sizeof(pkvar->var->data_size))
 		return OPAL_RESOURCE;
+	if (tmpsize < 0)
+		return OPAL_RESOURCE;
 
 	tmp = zalloc(tmpsize);
 	if (!tmp)
