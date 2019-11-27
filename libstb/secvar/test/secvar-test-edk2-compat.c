@@ -25,6 +25,21 @@ const char *secvar_test_name = "edk2-compat";
 
 struct platform platform;
 
+
+#define ARBITRARY_SECBOOT_SIZE 128000
+char *secboot_buffer;
+static int secboot_read(void *dst, uint32_t src, uint32_t len)
+{
+	memcpy(dst, secboot_buffer + src, len);
+	return 0;
+}
+
+static int secboot_write(uint32_t dst, void *src, uint32_t len)
+{
+	memcpy(secboot_buffer + dst, src, len);
+	return 0;
+}
+
 int secvar_set_secure_mode(void) { return 0; };
 
 int run_test()
@@ -34,12 +49,9 @@ int run_test()
 	int keksize;
 	int dbsize;
 
-	// TODO: actually exercise the PK->TPM logic at some point
-	proc_gen = 0;
-
 	// Check pre-process creates the empty variables
 	ASSERT(0 == list_length(&variable_bank));
-	rc = edk2_compat_pre_process();	
+	rc = edk2_compat_pre_process();
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(4 == list_length(&variable_bank));
 
@@ -73,7 +85,7 @@ int run_test()
 	tmp->var->data_size = dbsize;
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
-	
+
 	rc = edk2_compat_process();
 	ASSERT(OPAL_SUCCESS != rc);
 	ASSERT(4 == list_length(&variable_bank));
@@ -84,7 +96,7 @@ int run_test()
 
 	printf("Add KEK");
 	// Add valid KEK, .process(), should succeed
-	
+
 	tmp = alloc_secvar(ValidKEK_auth_len);
 	memcpy(tmp->var->key, "KEK", 4);
 	tmp->var->key_len = 4;
@@ -121,7 +133,7 @@ int run_test()
 	ASSERT(NULL != tmp);
 	ASSERT(0 != tmp->var->data_size);
 
-	// Add invalid KEK, .process(), should fail 
+	// Add invalid KEK, .process(), should fail
 	printf("Add invalid KEK\n");
 	keksize = sizeof(InvalidKEK_auth);
 	tmp = alloc_secvar(keksize);
@@ -140,7 +152,7 @@ int run_test()
 	ASSERT(NULL != tmp);
 	ASSERT(0 != tmp->var->data_size);
 
-	// Add ill formatted KEK, .process(), should fail 
+	// Add ill formatted KEK, .process(), should fail
 	printf("Add invalid KEK\n");
 	keksize = sizeof(IllformatKEK_auth);
 	tmp = alloc_secvar(keksize);
@@ -159,8 +171,6 @@ int run_test()
 	ASSERT(NULL != tmp);
 	ASSERT(0 != tmp->var->data_size);
 
-	// Add garbage to .process()
-
 	return 0;
 }
 
@@ -171,7 +181,28 @@ int main(void)
 	list_head_init(&variable_bank);
 	list_head_init(&update_bank);
 
+	// Run as a generic platform using whatever storage
+	proc_gen = 0;
 	rc = run_test();
+
+	clear_bank_list(&variable_bank);
+	clear_bank_list(&update_bank);
+	ASSERT(0 == list_length(&variable_bank));
+	ASSERT(0 == list_length(&update_bank));
+	printf("PASSED FIRST TEST\n");
+
+	// Run as "p9" and use the TPM for pk
+	// TODO: Change to TSS stubs when this matters
+	platform.secboot_read = secboot_read;
+	platform.secboot_write = secboot_write;
+	secboot_buffer = zalloc(ARBITRARY_SECBOOT_SIZE);
+
+	proc_gen = proc_gen_p9;
+	rc = run_test();
+
+	free(secboot_buffer);
+	clear_bank_list(&variable_bank);
+	clear_bank_list(&update_bank);
 
 	return rc;
 }
