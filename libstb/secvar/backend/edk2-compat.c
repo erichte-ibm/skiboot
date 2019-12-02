@@ -108,7 +108,7 @@ static int edk2_p9_load_pk(void)
 
 	// Peek to get the size
 	rc = secvar_tpmnv_read(TPMNV_ID_EDK2_PK, &size, sizeof(size), 0);
-	if (OPAL_EMPTY)
+	if (rc == OPAL_EMPTY)
 		return 0;
 	else if (rc)
 		return -1;
@@ -117,14 +117,18 @@ static int edk2_p9_load_pk(void)
 		return OPAL_RESOURCE;
 
 	pkvar = alloc_secvar(size);
+	memcpy(pkvar->var->key, "PK", 3);
+	pkvar->var->key_len = 3;
 	pkvar->var->data_size = size;
 	pkvar->flags |= SECVAR_FLAG_VOLATILE;
 
 	rc = secvar_tpmnv_read(TPMNV_ID_EDK2_PK, pkvar->var->data, pkvar->var->data_size, sizeof(pkvar->var->data_size));
 	if (rc)
-		return -1;
+		return rc;
 
 	list_add_tail(&variable_bank, &pkvar->link);
+
+	return OPAL_SUCCESS;
 }
 
 /*
