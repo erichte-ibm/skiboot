@@ -176,6 +176,29 @@ int run_test()
 	return 0;
 }
 
+static int run_edk2_tpmnv_test(void)
+{
+	int size, rc;
+	char *tmp;
+
+	size = secvar_tpmnv_size(TPMNV_ID_EDK2_PK);
+	ASSERT(size > 0);
+	ASSERT(size < 1024);
+	tmp = malloc(size);
+	rc = secvar_tpmnv_read(TPMNV_ID_EDK2_PK, tmp, size, 0);
+	ASSERT(OPAL_SUCCESS == rc);
+	// memcmp here?
+
+	clear_bank_list(&variable_bank);
+	ASSERT(0 == list_length(&variable_bank));
+
+	rc = edk2_p9_load_pk();
+	ASSERT(OPAL_SUCCESS == rc);
+	ASSERT(1 == list_length(&variable_bank));
+
+	return rc;
+}
+
 int main(void)
 {
 	int rc;
@@ -183,9 +206,13 @@ int main(void)
 	list_head_init(&variable_bank);
 	list_head_init(&update_bank);
 
+	secvar_storage.max_var_size = 4096;
+
 	// Run as a generic platform using whatever storage
 	proc_gen = 0;
 	rc = run_test();
+	if (rc)
+		goto out_bank;
 
 	clear_bank_list(&variable_bank);
 	clear_bank_list(&update_bank);
@@ -201,8 +228,15 @@ int main(void)
 
 	proc_gen = proc_gen_p9;
 	rc = run_test();
+	if (rc)
+		goto out;
 
+	// Check that PK was actually written to "TPM" and load it
+	rc = run_edk2_tpmnv_test();
+
+out:
 	free(secboot_buffer);
+out_bank:
 	clear_bank_list(&variable_bank);
 	clear_bank_list(&update_bank);
 
