@@ -150,7 +150,7 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 		return OPAL_EMPTY;
 
 	size = MIN(size, var->size);
-	memcpy(buf + off, var->data, size);
+	memcpy(buf, var->data + off, size);
 
 	return 0;
 }
