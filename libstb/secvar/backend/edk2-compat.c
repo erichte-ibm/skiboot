@@ -219,17 +219,10 @@ static int get_pkcs7_len(struct efi_variable_authentication_2 *auth)
 /*
  * Return the timestamp from the Authentication 2 Descriptor.
  */
-static int get_timestamp_from_auth(char *data, char **timestamp)
+static int get_timestamp_from_auth(char *data, struct efi_time **timestamp)
 {
-	if (!timestamp)
-		return OPAL_PARAMETER;
-	*timestamp = zalloc(sizeof(struct efi_time));
-	if (!(*timestamp))
-		return OPAL_NO_MEM;
+	*timestamp = (struct efi_time *) data;
 
-	memcpy(*timestamp, data, sizeof(struct efi_time)); 
-
-	*timestamp = (char*) data;
 	return 0;
 }
 
@@ -511,7 +504,7 @@ pkcs7out:
 static int get_data_to_verify(char *key, char *new_data,
 		uint64_t new_data_size,
 		char **buffer,
-		uint64_t *buffer_size, char *timestamp)
+		uint64_t *buffer_size, struct efi_time *timestamp)
 {
 	le32 attr = cpu_to_le32(SECVAR_ATTRIBUTES);
 	int size = 0;
@@ -557,7 +550,7 @@ static int edk2_compat_process(void)
 {
 	char *auth_buffer = NULL;
 	uint64_t auth_buffer_size = 0;
-	char *timestamp = NULL;
+	struct efi_time *timestamp = NULL;
 	const char *key_authority[3];
 	char *newesl = NULL;
 	uint64_t new_data_size = 0;
@@ -596,7 +589,7 @@ static int edk2_compat_process(void)
 		if (rc < 0)
 			goto out;	
 
-		rc = check_timestamp(node->var->key, (struct efi_time *) timestamp);
+		rc = check_timestamp(node->var->key, timestamp);
 		if (rc)
 			goto out;
 
@@ -675,8 +668,6 @@ out:
 		free(newesl);
 	if (tbhbuffer)
 		free(tbhbuffer);
-	if (timestamp)
-		free(timestamp);
 
 	clear_bank_list(&update_bank);
 
