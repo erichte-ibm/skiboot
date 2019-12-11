@@ -22,6 +22,8 @@
 
 static bool setup_mode;
 
+struct efi_time *timestamp_list;
+
 /*
  * Converts utf8 string to ucs2
  */
@@ -221,13 +223,13 @@ static int get_timestamp_from_auth(char *data, char **timestamp)
 {
 	if (!timestamp)
 		return OPAL_PARAMETER;
-
 	*timestamp = zalloc(sizeof(struct efi_time));
 	if (!(*timestamp))
 		return OPAL_NO_MEM;
 
 	memcpy(*timestamp, data, sizeof(struct efi_time)); 
 
+	*timestamp = (char*) data;
 	return 0;
 }
 
@@ -273,6 +275,7 @@ static int edk2_compat_pre_process(void)
 	struct secvar_node *kekvar;
 	struct secvar_node *dbvar;
 	struct secvar_node *dbxvar;
+	struct secvar_node *tsvar;
 
 	// If we are on p9, we need to store the PK in write-lockable
 	//  TPMNV space, as we determine our secure mode based on if this
@@ -332,6 +335,19 @@ static int edk2_compat_pre_process(void)
 		list_add_tail(&variable_bank, &dbxvar->link);
 	}
 
+	tsvar = find_secvar("TS", 3, &variable_bank);
+	// Should only ever happen on first boot
+	if (!tsvar) {
+		tsvar = alloc_secvar(sizeof(struct efi_time) * 4);
+		if (!tsvar)
+			return OPAL_NO_MEM;
+
+		memcpy(tsvar->var->key, "TS", 3);
+		tsvar->var->key_len = 3;
+		list_add_tail(&variable_bank, &tsvar->link);
+	}
+	timestamp_list = (struct efi_time *) tsvar->var->data;
+
 	return OPAL_SUCCESS;
 };
 
@@ -352,6 +368,38 @@ static int is_setup_mode(void)
 		return 1;
 
 	return !setup->var->data_size;
+}
+
+static int check_timestamp(char *key, struct efi_time *timestamp)
+{
+	struct efi_time *prev;
+	int off;
+
+	if (strncmp(key, "PK", 3))
+		off = 0;
+	else if (strncmp(key, "KEK", 4))
+		off = 1;
+	else if (strncmp(key, "db", 3))
+		off = 2;
+	else if (strncmp(key, "dbx", 4))
+		off = 3;
+	else
+		return OPAL_PERMISSION;	// unexpected variable name?
+
+	prev = &timestamp_list[off];
+
+	// Compare timestamps
+	// NOTE: this doesn't work, but this comparison is gonna be tedious
+	//  WHY do they have to be 128-bits total
+	//  64-bit UNIX timestamps are PERFECTLY FINE
+	//  WHHYYYYYYY
+	if (*((uint64_t *) prev) <= *((uint64_t *) timestamp)) // this MIGHT work well enough
+		return OPAL_PERMISSION;
+
+	// Update the TS variable with the new timestamp
+	memcpy(prev, timestamp, sizeof(struct efi_time));
+
+	return OPAL_SUCCESS;
 }
 
 /**
@@ -395,6 +443,7 @@ static int verify_signature(void *auth_buffer, char *newcert,
 	char *errbuf;
 
 	auth = auth_buffer;
+
 
 	len  = get_pkcs7_len(auth);
 
@@ -546,6 +595,10 @@ static int edk2_compat_process(void)
 		rc = get_timestamp_from_auth(auth_buffer, &timestamp);
 		if (rc < 0)
 			goto out;	
+
+		rc = check_timestamp(node->var->key, (struct efi_time *) timestamp);
+		if (rc)
+			goto out;
 
 		/* Calculate the size of new ESL data */
 		new_data_size = node->var->data_size - auth_buffer_size;
