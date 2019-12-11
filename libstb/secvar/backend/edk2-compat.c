@@ -368,13 +368,13 @@ static int check_timestamp(char *key, struct efi_time *timestamp)
 	struct efi_time *prev;
 	int off;
 
-	if (strncmp(key, "PK", 3))
+	if (!strncmp(key, "PK", 3))
 		off = 0;
-	else if (strncmp(key, "KEK", 4))
+	else if (!strncmp(key, "KEK", 4))
 		off = 1;
-	else if (strncmp(key, "db", 3))
+	else if (!strncmp(key, "db", 3))
 		off = 2;
-	else if (strncmp(key, "dbx", 4))
+	else if (!strncmp(key, "dbx", 4))
 		off = 3;
 	else
 		return OPAL_PERMISSION;	// unexpected variable name?
