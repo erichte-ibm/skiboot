@@ -4,5 +4,5 @@
 	branch = mbedtls-2.16
 [submodule "libstb/ibmtpm20tss"]
 	path = libstb/tss2/ibmtpm20tss
-	url = ssh://git@github.ibm.com/maurosr/ibmtpm20tss
-	branch = maurosr/tss-skiboot
+	url = https://github.com/erichte-ibm/ibmtpm20tss
+	branch = stb/dev
