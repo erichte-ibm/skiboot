@@ -2,3 +2,7 @@
 	path = libstb/crypto/mbedtls
 	url = https://github.com/ARMmbed/mbedtls
 	branch = mbedtls-2.16
+[submodule "libstb/ibmtpm20tss"]
+	path = libstb/tss2/ibmtpm20tss
+	url = https://github.com/erichte-ibm/ibmtpm20tss
+	branch = maurosr/v3-tss-skiboot
