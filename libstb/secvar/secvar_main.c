@@ -29,6 +29,10 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 
 	prlog(PR_INFO, "Secure variables are supported, initializing secvar\n");
 
+#ifdef SECVAR_PRINT_COMMIT
+	prlog(PR_INFO, "Secvar commit id = " SECVAR_PRINT_COMMIT "\n");
+#endif
+
 	secvar_storage = storage_driver;
 	secvar_backend = backend_driver;
 

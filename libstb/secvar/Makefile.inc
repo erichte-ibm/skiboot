@@ -12,4 +12,6 @@ SECVAR_SRCS = secvar_main.c secvar_util.c secvar_devtree.c secvar_api.c secvar_t
 SECVAR_OBJS = $(SECVAR_SRCS:%.c=%.o)
 SECVAR = $(SECVAR_DIR)/built-in.a
 
+CFLAGS_$(SECVAR_DIR)/ = -DSECVAR_PRINT_COMMIT="\"$(shell git rev-parse HEAD)\""
+
 $(SECVAR): $(SECVAR_OBJS:%=$(SECVAR_DIR)/%) $(SECVAR_STORAGE) $(SECVAR_BACKEND)
