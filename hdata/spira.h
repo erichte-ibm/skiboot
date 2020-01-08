@@ -364,6 +364,7 @@ struct iplparams_sysparams {
 	uint8_t		sys_vendor[64];		/* >= 0x5f */
 #define SEC_CONTAINER_SIG_CHECKING PPC_BIT16(0)
 #define SEC_HASHES_EXTENDED_TO_TPM PPC_BIT16(1)
+#define PHYSICAL_PRESENCE_ASSERTED PPC_BIT16(3)
 	__be16		sys_sec_setting;	/* >= 0x60 */
 	__be16		tpm_config_bit;		/* >= 0x60 */
 	__be16		tpm_drawer;		/* >= 0x60 */
@@ -372,6 +373,9 @@ struct iplparams_sysparams {
 	uint8_t		hw_key_hash[SYSPARAMS_HW_KEY_HASH_MAX];  /* >= 0x60 */
 	uint8_t		sys_family_str[64];	/* vendor,name */
 	uint8_t		sys_type_str[64];	/* vendor,type */
+	__be16          host_fw_key_clear;
+#define KEY_CLEAR_ALL	PPC_BIT16(0)
+#define KEY_CLEAR_OS_PK	PPC_BIT16(1)
 } __packed;
 
 /* Idata index 1: IPL parameters */

@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <device.h>
 #include <ccan/endian/endian.h>
 #include "libstb/crypto/pkcs7/pkcs7.h"
 #include "edk2.h"
@@ -439,9 +440,9 @@ static int add_to_variable_bank(struct secvar *secvar, void *data, uint64_t dsiz
 	if (node->size < dsize)
 		if (realloc_secvar(node, dsize))
 			return OPAL_NO_MEM;
-
+	if (dsize && data)
+		memcpy(node->var->data, data, dsize);
 	node->var->data_size = dsize;
-	memcpy(node->var->data, data, dsize);
 	node->flags &= ~SECVAR_FLAG_VOLATILE; // Clear the volatile bit when updated
 
 	return 0;
@@ -673,6 +674,25 @@ static int get_data_to_verify(char *key, char *new_data,
 	return 0;
 }
 
+static int clear_all_keys(void)
+{
+	struct secvar_node *node;
+
+	node = find_secvar("PK", 3, &variable_bank);
+	add_to_variable_bank(node->var, NULL, 0);
+
+	node = find_secvar("KEK", 4, &variable_bank);
+	add_to_variable_bank(node->var, NULL, 0);
+
+	node = find_secvar("db", 3, &variable_bank);
+	add_to_variable_bank(node->var, NULL, 0);
+
+	node = find_secvar("dbx", 4, &variable_bank);
+	add_to_variable_bank(node->var, NULL, 0);
+
+	return 0;
+}
+
 static int edk2_compat_process(void)
 {
 	char *auth_buffer = NULL;
@@ -691,6 +711,14 @@ static int edk2_compat_process(void)
 
 	//setup_mode = is_setup_mode();
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
+
+	if (dt_find_property(NULL, "physical-presence"))
+	{
+		clear_all_keys();
+		pk_updated = 1;
+		setup_mode = true;
+		goto updatepk;
+	}
 
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
@@ -786,6 +814,7 @@ static int edk2_compat_process(void)
 		}
 	}
 
+updatepk:
 	if (pk_updated) {
 		// Store the updated pk in TPMNV on p9
 		if (proc_gen == proc_gen_p9) {
