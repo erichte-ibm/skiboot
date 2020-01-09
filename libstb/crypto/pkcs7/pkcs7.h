@@ -134,6 +134,8 @@ int mbedtls_pkcs7_signed_data_verify(mbedtls_pkcs7 *pkcs7, mbedtls_x509_crt *cer
 
 int mbedtls_pkcs7_load_file( const char *path, unsigned char **buf, size_t *n );
 
+void mbedtls_pkcs7_free(  mbedtls_pkcs7 *pkcs7 );
+
 #if defined(MBEDTLS_SELF_TEST)
 
 /**
@@ -161,7 +163,7 @@ int mbedtls_x509_self_test( int verbose );
 /*
  * PKCS#7 OIDs
  */
-#define MBEDTLS_OID_PKCS7             MBEDTLS_OID_PKCS "\x07" /**< pkcs-7 */ 
+#define MBEDTLS_OID_PKCS7             MBEDTLS_OID_PKCS "\x07" /**< pkcs-7 */
 
 #define MBEDTLS_OID_PKCS7_DATA                MBEDTLS_OID_PKCS7 "\x01" /**< pbeWithMD2AndDES-CBC OBJECT IDENTIFIER ::= {pkcs-5 1} */
 #define MBEDTLS_OID_PKCS7_SIGNED_DATA         MBEDTLS_OID_PKCS7 "\x02" /**< pbeWithMD2AndDES-CBC OBJECT IDENTIFIER ::= {pkcs-5 1} */
