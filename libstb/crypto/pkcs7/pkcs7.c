@@ -15,24 +15,28 @@
  */
 
 #if !defined(MBEDTLS_CONFIG_FILE)
-#include <mbedtls/config.h>
+#include "mbedtls/config.h"
 #else
 #include MBEDTLS_CONFIG_FILE
 #endif
-//#if defined(MBEDTLS_PKCS7_USE_C)
+#if defined(MBEDTLS_PKCS7_USE_C)
 
-#include <mbedtls/x509.h>
-#include <mbedtls/asn1.h>
-#include "pkcs7.h"
-#include <mbedtls/x509_crt.h>
-#include <mbedtls/oid.h>
+#include "mbedtls/x509.h"
+#include "mbedtls/asn1.h"
+#include "mbedtls/pkcs7.h"
+#include "mbedtls/x509_crt.h"
+#include "mbedtls/x509_crl.h"
+#include "mbedtls/oid.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #if defined(MBEDTLS_PLATFORM_C)
-#include <mbedtls/platform.h>
+#include "mbedtls/platform.h"
 #else
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,10 +47,10 @@
 #endif
 
 #if defined(MBEDTLS_HAVE_TIME)
-#include <mbedtls/platform_time.h>
+#include "mbedtls/platform_time.h"
 #endif
 #if defined(MBEDTLS_HAVE_TIME_DATE)
-#include <mbedtls/platform_util.h>
+#include "mbedtls/platform_util.h"
 #include <time.h>
 #endif
 
@@ -57,36 +61,30 @@
  * A terminating null byte is always appended.
  */
 
-#if 0
 int mbedtls_pkcs7_load_file( const char *path, unsigned char **buf, size_t *n )
 {
-    FILE *f;
-    long size;
+    FILE *file;
+    struct stat st;
+    int rc;
 
+    rc = stat( path, &st );
+    if ( rc )
+	return( MBEDTLS_ERR_PKCS7_FILE_IO_ERROR);
 
-    if( ( f = fopen( path, "rb" ) ) == NULL )
+    if( ( file = fopen( path, "rb" ) ) == NULL )
         return( MBEDTLS_ERR_PKCS7_FILE_IO_ERROR );
 
-    fseek( f, 0, SEEK_END );
-    if( ( size = ftell( f ) ) == -1 )
-    {
-        fclose( f );
-        return( MBEDTLS_ERR_PKCS7_FILE_IO_ERROR );
-    }
-    fseek( f, 0, SEEK_SET );
+    mbedtls_printf( "file size is %lu\n", st.st_size );
 
-    *n = (size_t) size;
+    *n = (size_t) st.st_size;
 
-    if( *n + 1 == 0 ||
-        ( *buf = mbedtls_calloc( 1, *n + 1 ) ) == NULL )
-    {
-        fclose( f );
+    *buf = mbedtls_calloc( 1, *n + 1 );
+    if ( *buf == NULL )
         return( MBEDTLS_ERR_PKCS7_ALLOC_FAILED );
-    }
 
-    if( fread( *buf, 1, *n, f ) != *n )
+    if( fread( *buf, 1, *n, file ) != *n )
     {
-        fclose( f );
+        fclose( file );
 
         mbedtls_platform_zeroize( *buf, *n + 1 );
         mbedtls_free( *buf );
@@ -94,13 +92,12 @@ int mbedtls_pkcs7_load_file( const char *path, unsigned char **buf, size_t *n )
         return( MBEDTLS_ERR_PKCS7_FILE_IO_ERROR );
     }
 
-    fclose( f );
+    fclose( file );
 
     (*buf)[*n] = '\0';
 
     return( 0 );
 }
-#endif
 
 /**
  * Initializes the pkcs7 structure.
@@ -413,6 +410,9 @@ int mbedtls_pkcs7_parse_der( const unsigned char *buf, const int buflen,
       start = ( unsigned char * )buf;
       end = start + buflen;
 
+	if (!pkcs7)
+		return ( MBEDTLS_ERR_PKCS7_BAD_INPUT_DATA );
+
       ret = pkcs7_get_content_info_type( &start, end, &pkcs7->content_type_oid );
       if ( ret != 0 )
               goto out;
@@ -440,7 +440,7 @@ int mbedtls_pkcs7_parse_der( const unsigned char *buf, const int buflen,
                ret = MBEDTLS_ERR_PKCS7_INVALID_ALG;
                goto out;
         }
-      mbedtls_printf("Content type is SignedData, continue...\n");
+      mbedtls_printf("Content type is SignedData\n");
 
       start = start + pkcs7->content_type_oid.len;
 
@@ -468,9 +468,33 @@ int mbedtls_pkcs7_signed_data_verify( mbedtls_pkcs7 *pkcs7, mbedtls_x509_crt *ce
        mbedtls_md( md_info, data, datalen, hash );
        ret = mbedtls_pk_verify( &pk_cxt, MBEDTLS_MD_SHA256,hash, 32, pkcs7->signed_data.signers.sig.p, pkcs7->signed_data.signers.sig.len );
 
-       printf("rc is %02x\n", ret);
+       mbedtls_printf("Verification return code is %02x\n", ret);
 
        return ( ret );
 }
 
-//#endif
+/*
+ * Unallocate all pkcs7 data
+ */
+void mbedtls_pkcs7_free(  mbedtls_pkcs7 *pkcs7 )
+{
+	mbedtls_x509_name *name_cur;
+	mbedtls_x509_name *name_prv;
+
+	if (pkcs7 == NULL)
+		return;
+
+	mbedtls_x509_crt_free( &pkcs7->signed_data.certs );
+	mbedtls_x509_crl_free( &pkcs7->signed_data.crl );
+
+	name_cur = pkcs7->signed_data.signers.issuer.next;
+        while( name_cur != NULL )
+        {
+            name_prv = name_cur;
+            name_cur = name_cur->next;
+            mbedtls_platform_zeroize( name_prv, sizeof( mbedtls_x509_name ) );
+            mbedtls_free( name_prv );
+        }
+}
+
+#endif
