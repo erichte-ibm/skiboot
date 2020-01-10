@@ -10,6 +10,7 @@
 #include "tpm_i2c_interface.h"
 #include "tpm_i2c_nuvoton.h"
 #include <opal-api.h>
+#include <tpm2.h>
 
 //#define DBG(fmt, ...) prlog(PR_DEBUG, fmt, ##__VA_ARGS__)
 #define DBG(fmt, ...)
@@ -593,6 +594,7 @@ void tpm_i2c_nuvoton_probe(void)
 			free(tpm_device);
 			continue;
 		}
+		tpm2_register(tpm_device, &tpm_i2c_nuvoton_driver);
 		bus = i2c_find_bus_by_id(tpm_device->bus_id);
 		assert(bus->check_quirk == NULL);
 		bus->check_quirk = nuvoton_tpm_quirk;
