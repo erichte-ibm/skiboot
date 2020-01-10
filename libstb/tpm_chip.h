@@ -8,25 +8,8 @@
 
 #include "tss/tpmLogMgr.H"
 #include "tss/trustedTypes.H"
+#include <tpm2.h>
 
-struct tpm_dev {
-
-	/* TPM bus id */
-	int bus_id;
-
-	/* TPM address in the bus */
-	int i2c_addr;
-};
-
-struct tpm_driver {
-
-	/* Driver name */
-	const char* name;
-
-	/* Transmit the TPM command stored in buf to the tpm device */
-	int (*transmit)(struct tpm_dev *dev, uint8_t* buf, size_t cmdlen,
-			size_t *buflen);
-};
 
 struct tpm_chip {
 
