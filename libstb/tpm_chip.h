@@ -6,8 +6,10 @@
 
 #include <device.h>
 
-#include "tss/tpmLogMgr.H"
-#include "tss/trustedTypes.H"
+#include "tss2/eventlog.h"
+#include <eventlib.h>
+#include "tss2/tssskiboot.h"
+
 #include <tpm2.h>
 
 struct tpm_chip {
@@ -52,21 +54,17 @@ extern int tpm_register_chip(struct dt_node *node, struct tpm_dev *dev,
  *
  * @pcr: PCR number to be extended and recorded in the event log. The same PCR
  * number is extende for both sha1 and sha256 banks.
- * @alg1: SHA algorithm of digest1. Either TPM_ALG_SHA1 or TPM_ALG_SHA256
- * @digest1: digest1 buffer
- * @size1: size of digest1. Either TPM_ALG_SHA1_SIZE or TPM_ALG_SHA256_SIZE
- * @alg2: SHA algorithm of digest2. Either TPM_ALG_SHA1 or TPM_ALG_SHA256
- * @digest2: digest2 buffer
- * @size2: size of digest2. Either TPM_ALG_SHA1_SIZE or TPM_ALG_SHA256_SIZE
+ * @hashes: vector containing the target hash banks, usually sha1 and sha256.
+ * @hashes_len: size of hashes vector, usually 2, as we usually use sha1 and
+ * sha256.
+ * @digest: digest buffer
  * @event_type: event type log. In skiboot, either EV_ACTION or EV_SEPARATOR.
  * @event_msg: event log message that describes the event
  *
  * Returns O for success or a negative number if it fails.
  */
-extern int tpm_extendl(TPM_Pcr pcr,
-		       TPM_Alg_Id alg1, uint8_t* digest1, size_t size1,
-		       TPM_Alg_Id alg2, uint8_t* digest2, size_t size2,
-		       uint32_t event_type, const char* event_msg);
+int tpm_extendl(TPMI_DH_PCR pcr, TPMI_ALG_HASH *hashes, uint8_t hashes_len,
+		const char* digest, uint32_t event_type, const char* event_msg);
 
 /* Add status property to the TPM devices */
 extern void tpm_add_status_property(void);
