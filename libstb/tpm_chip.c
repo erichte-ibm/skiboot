@@ -11,7 +11,7 @@
 #include "container.h"
 #include "tpm_chip.h"
 #include "drivers/tpm_i2c_nuvoton.h"
-#include "tss/trustedbootCmds.H"
+#include <eventlog.h>
 
 /* For debugging only */
 //#define STB_DEBUG
@@ -19,15 +19,17 @@
 static struct list_head tpm_list = LIST_HEAD_INIT(tpm_list);
 
 #ifdef STB_DEBUG
-static void tpm_print_pcr(struct tpm_chip *tpm, TPM_Pcr pcr, TPM_Alg_Id alg,
-			  size_t size)
+static void tpm_print_pcr(TPMI_DH_PCR pcr, TPM_ALG_ID alg,
+ 			  size_t size)
 {
 	int rc;
 	uint8_t digest[TPM_ALG_SHA256_SIZE];
+//	TPMI_ALG_HASH hashes[1] = { alg };
+
 
 	memset(digest, 0, size);
 
-	rc = tpmCmdPcrRead(tpm, pcr, alg, digest, size);
+	rc = tss_pcr_read(pcr, &alg, 1);
 	if (rc) {
 		/**
 		 * @fwts-label STBPCRReadFailed
@@ -120,8 +122,7 @@ int tpm_register_chip(struct dt_node *node, struct tpm_dev *dev,
 	 * Initialize the event log manager by walking through the log to identify
 	 * what is the next free position in the log
 	 */
-	rc = TpmLogMgr_initializeUsingExistingLog(&tpm->logmgr,
-					 (uint8_t*) sml_base, sml_size);
+	rc = load_eventlog(&tpm->logmgr, (int8_t*) sml_base, sml_size);
 
 	if (rc) {
 		/**
@@ -198,14 +199,17 @@ static void tpm_disable(struct tpm_chip *tpm)
 	prlog(PR_NOTICE, "tpm%d disabled\n", tpm->id);
 }
 
-int tpm_extendl(TPM_Pcr pcr,
-		TPM_Alg_Id alg1, uint8_t* digest1, size_t size1,
-		TPM_Alg_Id alg2, uint8_t* digest2, size_t size2,
-		uint32_t event_type, const char* event_msg)
+int tpm_extendl(TPMI_DH_PCR pcr,
+		TPMI_ALG_HASH alg1, uint8_t *digest1,
+		TPMI_ALG_HASH alg2, uint8_t *digest2,
+		uint32_t event_type, const char *event_msg)
 {
 	int rc, failed;
-	TCG_PCR_EVENT2 event;
+	TCG_PCR_EVENT2 *event = calloc(1, sizeof(TCG_PCR_EVENT2));
 	struct tpm_chip *tpm = NULL;
+	uint8_t hashes_len = 2;
+	TPMI_ALG_HASH hashes[2] = {alg1, alg2};
+	const uint8_t *digests[] = {digest1, digest2};
 
 	failed = 0;
 
@@ -220,11 +224,13 @@ int tpm_extendl(TPM_Pcr pcr,
 	list_for_each(&tpm_list, tpm, link) {
 		if (!tpm->enabled)
 			continue;
-		event = TpmLogMgr_genLogEventPcrExtend(pcr, alg1, digest1, size1,
-						       alg2, digest2, size2,
-						       event_type, event_msg);
-		/* eventlog recording */
-		rc = TpmLogMgr_addEvent(&tpm->logmgr, &event);
+		/* instantiate eventlog */
+		rc = build_event(event, pcr, hashes, hashes_len, digests,
+				 event_type, event_msg);
+
+		if (rc == 0)
+			/* eventlog recording */
+			rc = add_to_eventlog(&tpm->logmgr, event);
 		if (rc) {
 			/**
 			 * @fwts-label STBAddEventFailed
@@ -254,9 +260,7 @@ int tpm_extendl(TPM_Pcr pcr,
 		tpm_print_pcr(tpm, pcr, alg2, size2);
 #endif
 		/* extend the pcr number in both sha1 and sha256 banks*/
-		rc = tpmCmdPcrExtend2Hash(tpm, pcr,
-					  alg1, digest1, size1,
-					  alg2, digest2, size2);
+		rc = tss_pcr_extend(pcr, hashes, hashes_len, digests);
 		if (rc) {
 			/**
 			 * @fwts-label STBPCRExtendFailed
