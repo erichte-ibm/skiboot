@@ -54,7 +54,7 @@
 
 static TSS_CONTEXT *context = NULL;
 
-TPM_RC get_context(void){
+static TPM_RC get_context(void){
 	TPM_RC rc = TPM_RC_SUCCESS;
 
 	if(!context){
@@ -80,47 +80,8 @@ static void traceError(const char *command, TPM_RC rc)
     printf("%s%s%s\n", msg, submsg, num);
 }
 
-/**
- * @brief readpublic fills the TSS context object slot with the
- *        wrapping key public part. The Name is required for
- *        the HMAC calculation.
- *
- */
-TPM_RC TSS_NV_ReadPublic(TSS_CONTEXT *ctx, NV_ReadPublic_In *in,
-				NV_ReadPublic_Out *out)
-{
-	TPM_RC rc;
 
-	printf("%s: nvIndex %x\n", __func__, in->nvIndex);
-
-	rc = TSS_Execute(ctx,
-			 (RESPONSE_PARAMETERS *) out,
-			 (COMMAND_PARAMETERS *) in,
-			 NULL,
-			 TPM_CC_NV_ReadPublic,
-			 TPM_RH_NULL, NULL, 0);
-
-	if (rc == 0) {
-		printf("%s: name algorithm %04x\n", __func__,
-		       out->nvPublic.nvPublic.nameAlg);
-		printf("%s: data size %u\n", __func__,
-		       out->nvPublic.nvPublic.dataSize);
-		printf("%s: attributes %08x\n", __func__,
-		       out->nvPublic.nvPublic.attributes.val);
-		TSS_TPMA_NV_Print(out->nvPublic.nvPublic.attributes, 0);
-		TSS_PrintAll("TSS_NV_ReadPublic: policy",
-			     out->nvPublic.nvPublic.authPolicy.t.buffer,
-			     out->nvPublic.nvPublic.authPolicy.t.size);
-		TSS_PrintAll("TSS_NV_ReadPublic: name",
-			     out->nvName.t.name, out->nvName.t.size);
-	} else {
-		traceError("TSS_NV_ReadPublic", rc);
-	}
-
-	return rc;
-}
-
-TPM_RC TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex)
+int TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex)
 {
 	TPM_RC rc;
 
@@ -167,7 +128,7 @@ cleanup:
 }
 
 
-TPM_RC TSS_NV_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+int TSS_NV_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 {
 	int rc;
 
@@ -226,7 +187,7 @@ cleanup:
 }
 
 
-TPM_RC TSS_NV_Write(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 {
 	int rc;
 
@@ -275,7 +236,7 @@ cleanup:
 }
 
 
-TPM_RC TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex)
+int TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex)
 {
 	int rc;
 

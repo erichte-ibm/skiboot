@@ -38,25 +38,23 @@
 #ifndef TSSSKIBOOT_H
 #define TSSSKIBOOT_H
 
-#include <ibmtss/tss.h>
-#include <ibmtss/tssresponsecode.h>
-#include <ibmtss/tssmarshal.h>
+#ifndef TPM_POSIX
+#define TPM_POSIX
+#endif
+
 #include "tssproperties.h"
 
-TPM_RC get_context(void);
 int TSS_PCR_Read(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *hashes,
 		 uint8_t hashes_len);
 int TSS_PCR_Extend(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *v_hashes,
                    uint8_t hashes_len, const char *digest);
 
-TPM_RC TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex);
-TPM_RC TSS_NV_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off);
-TPM_RC TSS_NV_Write(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off);
-TPM_RC TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex);
+int TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex);
+int TSS_NV_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off);
+int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off);
+int TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex);
 
-TPM_RC TSS_NV_ReadPublic(TSS_CONTEXT *ctx, NV_ReadPublic_In *in,
-			 NV_ReadPublic_Out *out);
-int TSS_NV_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
+int TSS_NV_Define_Space(uint32_t nvIndex, const char hierarchy,
 			const char hierarchy_authorization,
 			uint16_t dataSize);
 int TSS_Get_Random_Number(char *buffer, size_t len);
