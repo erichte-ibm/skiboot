@@ -1,6 +1,8 @@
-#include<eventlog.h>
-#include<eventlib.h>
 #include<skiboot.h>
+#include<eventlog.h>
+
+#include<eventlib.h>
+#include<ibmtss/tssmarshal.h>
 
 /*
  * NOTE(maurosr): I wonder if any lock is necessary to manage eventlog. By what
@@ -35,7 +37,7 @@ int load_eventlog(TpmLogMgr *logmgr, uint8_t *eventlog_ptr,
 	size = sizeof(TCG_PCR_EVENT);
 
 	//first event in the log is a header
-	rc = TSS_EVENT_Buffer_Unmarshal(event, &log_ptr, &size);
+	rc = TSS_EVENT_Line_LE_Unmarshal(event, &log_ptr, &size);
 	if(rc)
 	{
 		prlog(PR_INFO, "Couldn't read event log header event, rc=%d",
@@ -70,9 +72,9 @@ fail:
 
 int add_to_eventlog(TpmLogMgr *logmgr, TCG_PCR_EVENT2 *event)
 {
-	uint8_t *nullbuffer = NULL;
-	uint16_t written = 0;
-	uint32_t size = sizeof(TCG_PCR_EVENT2), ev_size = 0, rc = 0;
+	uint16_t written = 0, ev_size = 0;
+	uint32_t  size = sizeof(TCG_PCR_EVENT2);
+	int rc = 0;
 
 	/* Calling Marshal function with a NULL buffer to obtain the event size.
 	 * It's a well known and safe pattern used in TSS code.
@@ -80,7 +82,7 @@ int add_to_eventlog(TpmLogMgr *logmgr, TCG_PCR_EVENT2 *event)
 	 * only after success here marshal it to eventlog buffer pointed by
 	 * logmgr->newEventPtr.
 	 */
-	TSS_EVENT2_Line_LE_Marshal(event, &ev_size, &nullbuffer, &size);
+	TSS_EVENT2_Line_LE_Marshal(event, &ev_size, NULL, &size);
 	if(logmgr->logSize + ev_size > logmgr->logMaxSize){
 		return 1;
 	}
@@ -101,17 +103,18 @@ int build_event(TCG_PCR_EVENT2 *event, TPMI_DH_PCR pcrHandle,
 		uint32_t event_type, const char* logmsg)
 {
 
-	uint8_t alg_digest_size;
+	uint16_t alg_digest_size;
+	uint32_t size;
 
 	memset(event, 0, sizeof(TCG_PCR_EVENT2));
 	event->pcrIndex = pcrHandle;
 	event->eventType = event_type;
 	event->digests.count = hashes_len;
 
+	size = sizeof(TPMI_ALG_HASH);
 	for (int i=0; i < event->digests.count; i++){
 		event->digests.digests[i].hashAlg = hashes[i];
-
-		alg_digest_size = get_digest_size(hashes[i]);
+		 TSS_TPMI_ALG_HASH_Marshalu(hashes+i, &alg_digest_size, NULL, &size);
 
 		if (alg_digest_size == 0)
 			return 1;
