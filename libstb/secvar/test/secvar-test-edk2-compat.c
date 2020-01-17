@@ -13,10 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#define TSS_NV_Read NULL
+#define TSS_NV_Write NULL
+#define TSS_NV_Define_Space NULL
+
 #include "secvar_common_test.c"
 #include "../backend/edk2-compat.c"
 #include "../secvar_util.c"
 #include "../secvar_tpmnv.c"
+#define MBEDTLS_PKCS7_USE_C
 #include "../../crypto/pkcs7/pkcs7.c"
 #include <platform.h>
 #include "./data/edk2_test_data.h"
@@ -342,6 +348,9 @@ static int run_edk2_tpmnv_test(void)
 int main(void)
 {
 	int rc;
+
+	tpm_fake_nv = 1;
+	tpm_fake_nv_offset = 0;
 
 	list_head_init(&variable_bank);
 	list_head_init(&update_bank);
