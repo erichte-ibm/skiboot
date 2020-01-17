@@ -7,8 +7,8 @@
 #include <opal.h>
 #include <skiboot.h>
 #include <string.h>
+#include <tssskiboot.h>
 #include "secvar_tpmnv.h"
-//#include <tssskiboot.h>
 
 #define TPM_SECVAR_NV_INDEX	0x01c10191
 #define TPM_SECVAR_MAGIC_NUM	0x53544e56
@@ -30,24 +30,56 @@ int tpm_first_init = 0;
 struct tpm_nv *tpm_image;
 size_t tpm_nv_size = 0;
 
-// These are borrowed from secboot_tpm.c for the temporary, pnor-based
-// TPM NV storage backing. They should be removed when this file uses
-// the actual TPM and TSS
-#define SECBOOT_VARIABLE_BANK_SIZE      32000
-#define SECBOOT_UPDATE_BANK_SIZE        32000
-#define SECBOOT_VARIABLE_BANK_NUM       2
-#ifndef _secboot_header_ // stupid fix for the test, delete with the rest
-struct secboot_header {
-        uint32_t magic_number;
-        uint8_t version;
-        uint8_t reserved[3];    // Fix alignment
-} __packed;
-struct secboot {
-        struct secboot_header header;
-        char bank[SECBOOT_VARIABLE_BANK_NUM][SECBOOT_VARIABLE_BANK_SIZE];
-        char update[SECBOOT_UPDATE_BANK_SIZE];
-} __packed;
-#endif
+// Values set by a platform to enable TPMNV simulation mode
+// NOT INTENDED FOR PRODUCTION USE
+int tpm_fake_nv = 0;			// Use fake NV mode using pnor
+uint64_t tpm_fake_nv_offset = 0;	// Offset into SECBOOT pnor to use
+uint64_t tpm_fake_nv_max_size = 0;
+
+static TPM_RC TSS_Fake_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+{
+	(void) nvIndex;
+	(void) off;
+	return platform.secboot_read(buf, tpm_fake_nv_offset, bufsize);
+}
+
+static TPM_RC TSS_Fake_Write(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+{
+	(void) nvIndex;
+	(void) off;
+	return platform.secboot_write(tpm_fake_nv_offset, buf, bufsize);
+}
+
+static int TSS_Fake_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
+			const char hierarchy_authorization,
+			uint16_t dataSize)
+{
+	(void) nvIndex;
+	(void) hierarchy;
+	(void) hierarchy_authorization;
+	(void) dataSize;
+	return 0;
+}
+
+struct tpmnv_ops_s {
+	TPM_RC (*tss_nv_read)(TPMI_RH_NV_INDEX, void*, size_t, uint64_t);
+	TPM_RC (*tss_nv_write)(TPMI_RH_NV_INDEX, void*, size_t, uint64_t);
+	int (*tss_nv_define_space)(TPMI_RH_NV_INDEX, const char, const char, uint16_t);
+};
+
+struct tpmnv_ops_s TSS_tpmnv_ops = {
+	.tss_nv_read = TSS_NV_Read,
+	.tss_nv_write = TSS_NV_Write,
+	.tss_nv_define_space = TSS_NV_Define_Space,
+};
+
+struct tpmnv_ops_s Fake_tpmnv_ops = {
+	.tss_nv_read = TSS_Fake_Read,
+	.tss_nv_write = TSS_Fake_Write,
+	.tss_nv_define_space = TSS_Fake_Define_Space,
+};
+
+struct tpmnv_ops_s *tpmnv_ops = &TSS_tpmnv_ops;
 
 // This function should be replaced with logic that performs the initial
 // TPM NV Index definition, and any first-write logic
@@ -62,7 +94,7 @@ static int secvar_tpmnv_format(void)
 
 	tpm_first_init = 1;
 
-	return platform.secboot_write(sizeof(struct secboot), tpm_image, tpm_nv_size);
+	return tpmnv_ops->tss_nv_write(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
 }
 
 
@@ -82,11 +114,11 @@ static int secvar_tpmnv_init(void)
 	if (!tpm_image)
 		return OPAL_NO_MEM;
 
-	// Use pnor space for now, stored after the secboot pnor sections
-	// NOTE: This file should never reference secboot in the future
-	// Replace with TSS_NV_Read()
-	if (platform.secboot_read(tpm_image, sizeof(struct secboot), tpm_nv_size))
-		return OPAL_HARDWARE;
+	if (tpm_fake_nv)
+		tpmnv_ops = &Fake_tpmnv_ops;
+
+	tpmnv_ops->tss_nv_read(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
+
 	if (tpm_image->magic_num != TPM_SECVAR_MAGIC_NUM)
 		if(secvar_tpmnv_format())
 			return OPAL_HARDWARE;
@@ -185,9 +217,7 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 	size = MIN(size, var->size);
 	memcpy(var->data, buf + off, size);
 
-	// Replace with:
-	// TSS_NV_Write(TPM_SECVAR_NV_INDEX, var->data, size + sizeof(struct tpm_nv_id), tpm_image - var)
-	return platform.secboot_write(sizeof(struct secboot), tpm_image, tpm_nv_size);
+	return tpmnv_ops->tss_nv_write(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
 }
 
 int secvar_tpmnv_size(uint32_t id)

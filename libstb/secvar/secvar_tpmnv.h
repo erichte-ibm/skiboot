@@ -9,5 +9,8 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off);
 int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off);
 int secvar_tpmnv_size(uint32_t id);
 
+extern int tpm_fake_nv;
+extern uint64_t tpm_fake_nv_offset;
+
 #endif
 
