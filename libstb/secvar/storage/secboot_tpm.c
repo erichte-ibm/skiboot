@@ -10,6 +10,7 @@
 #include <mbedtls/sha256.h>
 #include "../secvar.h"
 #include "../secvar_tpmnv.h"
+#include "secboot_tpm.h"
 
 //#define CYCLE_BIT(b) (((((b-1)%SECBOOT_VARIABLE_BANK_NUM)+1)%SECBOOT_VARIABLE_BANK_NUM)+1)
 #define CYCLE_BIT(b) (b^0x1)
@@ -20,35 +21,8 @@
 
 #define GET_HASH_BANK_ID(bit) ((bit)?TPMNV_ID_HASH_BANK_1:TPMNV_ID_HASH_BANK_0)
 
-// TODO: Determine reasonable values for these, or have platform set it?
-#define SECBOOT_VARIABLE_BANK_SIZE	32000
-#define SECBOOT_UPDATE_BANK_SIZE	32000
-
-#define SECBOOT_VARIABLE_BANK_NUM	2
-
 // Because mbedtls doesn't define this?
 #define SHA256_DIGEST_LENGTH	32
-
-/* 0x5053424b = "PSBK" or Power Secure Boot Keystore */
-#define SECBOOT_MAGIC_NUMBER	0x5053424b
-#define SECBOOT_VERSION		1
-
-struct secboot_header {
-	uint32_t magic_number;
-	uint8_t version;
-	uint8_t reserved[3];	// Fix alignment
-} __packed;
-
-struct secboot {
-	struct secboot_header header;
-	char bank[SECBOOT_VARIABLE_BANK_NUM][SECBOOT_VARIABLE_BANK_SIZE];
-	char update[SECBOOT_UPDATE_BANK_SIZE];
-} __packed;
-
-// TODO: This should be deleted when the TSS is added
-// Only here to fix a collision that occurs in the test case where the
-// temporary copy of the above in secvar_tpmnv.c conflicts
-#define _secboot_header_
 
 struct secboot *secboot_image;
 
