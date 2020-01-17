@@ -2,8 +2,13 @@
 #include "../storage/secboot_tpm.c"
 #include "../../crypto/mbedtls/library/sha256.c"
 #include "../../crypto/mbedtls/library/platform_util.c"
-#include "../secvar_tpmnv.c"
 #include "../secvar_util.c"
+
+#define TSS_NV_Read NULL
+#define TSS_NV_Write NULL
+#define TSS_NV_Define_Space NULL
+
+#include "../secvar_tpmnv.c"
 
 char *secboot_buffer;
 
@@ -117,6 +122,9 @@ int run_test(void)
 int main(void)
 {
 	int rc = 0;
+
+	tpm_fake_nv = 1;
+	tpm_fake_nv_offset = 0;
 
 	list_head_init(&variable_bank);
 
