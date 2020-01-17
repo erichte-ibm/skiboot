@@ -292,6 +292,9 @@ static bool is_single_pk(char *data, uint64_t data_size)
 	/* Calculate the size of new ESL data */
 	new_data_size = data_size - auth_buffer_size;
 	printf("new data size is %d\n", (int)new_data_size);
+	if (!new_data_size)
+		return true;
+
 	newesl = zalloc(new_data_size);
 	memcpy(newesl, data + auth_buffer_size, new_data_size);
 
@@ -604,8 +607,7 @@ next:
 		free(signing_cert);
 
 pkcs7out:
-	//Uncomment below free after updating pkcs7 with latest changes that has the free function.
-	//mbedtls_pkcs7_free(pkcs7);
+	mbedtls_pkcs7_free(pkcs7);
 
 	return rc;
 }
