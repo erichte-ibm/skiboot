@@ -36,21 +36,21 @@ int tpm_fake_nv = 0;			// Use fake NV mode using pnor
 uint64_t tpm_fake_nv_offset = 0;	// Offset into SECBOOT pnor to use
 uint64_t tpm_fake_nv_max_size = 0;
 
-static TPM_RC TSS_Fake_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+static int TSS_Fake_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 {
 	(void) nvIndex;
 	(void) off;
 	return platform.secboot_read(buf, tpm_fake_nv_offset, bufsize);
 }
 
-static TPM_RC TSS_Fake_Write(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+static int TSS_Fake_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 {
 	(void) nvIndex;
 	(void) off;
 	return platform.secboot_write(tpm_fake_nv_offset, buf, bufsize);
 }
 
-static int TSS_Fake_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
+static int TSS_Fake_Define_Space(uint32_t nvIndex, const char hierarchy,
 			const char hierarchy_authorization,
 			uint16_t dataSize)
 {
@@ -62,9 +62,9 @@ static int TSS_Fake_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
 }
 
 struct tpmnv_ops_s {
-	TPM_RC (*tss_nv_read)(TPMI_RH_NV_INDEX, void*, size_t, uint64_t);
-	TPM_RC (*tss_nv_write)(TPMI_RH_NV_INDEX, void*, size_t, uint64_t);
-	int (*tss_nv_define_space)(TPMI_RH_NV_INDEX, const char, const char, uint16_t);
+	int (*tss_nv_read)(uint32_t, void*, size_t, uint64_t);
+	int (*tss_nv_write)(uint32_t, void*, size_t, uint64_t);
+	int (*tss_nv_define_space)(uint32_t, const char, const char, uint16_t);
 };
 
 struct tpmnv_ops_s TSS_tpmnv_ops = {
