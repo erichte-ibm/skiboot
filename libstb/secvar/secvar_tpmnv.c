@@ -26,6 +26,7 @@ struct tpm_nv {
 } __packed;
 
 int tpm_ready = 0;
+int tpm_error = 0;
 int tpm_first_init = 0;
 struct tpm_nv *tpm_image;
 size_t tpm_nv_size = 0;
@@ -85,9 +86,16 @@ struct tpmnv_ops_s *tpmnv_ops = &TSS_tpmnv_ops;
 // TPM NV Index definition, and any first-write logic
 static int secvar_tpmnv_format(void)
 {
+	int rc;
+
 	memset(tpm_image, 0, sizeof(tpm_nv_size));
 
-	// TSS_NV_Define_Space()
+	// TODO: Determine the proper auths
+	rc = tpmnv_ops->tss_nv_define_space(TPM_SECVAR_NV_INDEX, 'o', 'o', 1024);
+	if (rc) {
+		prlog(PR_INFO, "Failed to define NV index, rc = %d\n", rc);
+		return rc;
+	}
 
 	tpm_image->magic_num = TPM_SECVAR_MAGIC_NUM;
 	tpm_image->version = 1;
@@ -100,8 +108,14 @@ static int secvar_tpmnv_format(void)
 
 static int secvar_tpmnv_init(void)
 {
+	int rc;
+
 	if (tpm_ready)
 		return OPAL_SUCCESS;
+	if (tpm_error)
+		return OPAL_HARDWARE;
+
+	prlog(PR_INFO, "Initializing TPMNV space...\n");
 
 	// Check here if TPM NV Index is defined
 	//   if not, call secvar_tpmnv_format() here
@@ -111,17 +125,34 @@ static int secvar_tpmnv_init(void)
 	tpm_nv_size = 1024;
 
 	tpm_image = malloc(tpm_nv_size);
-	if (!tpm_image)
+	if (!tpm_image) {
+		tpm_error = 1;
 		return OPAL_NO_MEM;
+	}
 
-	if (tpm_fake_nv)
+	if (tpm_fake_nv) {
+		prlog(PR_INFO, "Enabling fake TPM NV mode\n");
 		tpmnv_ops = &Fake_tpmnv_ops;
+	}
 
-	tpmnv_ops->tss_nv_read(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
+	prlog(PR_INFO, "Reading in from TPM NV...\n");
+	rc = tpmnv_ops->tss_nv_read(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
+	if (rc) {
+		prlog(PR_INFO, "Failed to read from NV index, rc = %d\n", rc);
+		tpm_error = 1;
+		return OPAL_HARDWARE;
+	}
 
-	if (tpm_image->magic_num != TPM_SECVAR_MAGIC_NUM)
-		if(secvar_tpmnv_format())
+	if (tpm_image->magic_num != TPM_SECVAR_MAGIC_NUM) {
+		prlog(PR_INFO, "Magic num mismatch, reformatting NV space...\n");
+		rc = secvar_tpmnv_format();
+		if (rc) {
+			prlog(PR_INFO, "Failed to format tpmnv space, rc = %d\n", rc);
+			tpm_error = 1;
 			return OPAL_HARDWARE;
+		}
+	}
+	prlog(PR_INFO, "TPMNV space initialized successfully\n");
 	tpm_ready = 1;
 
 	return OPAL_SUCCESS;
