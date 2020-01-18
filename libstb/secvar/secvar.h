@@ -45,6 +45,7 @@ extern struct secvar_backend_driver secvar_backend;
 void clear_bank_list(struct list_head *bank);
 struct secvar_node *alloc_secvar(uint64_t size);
 int realloc_secvar(struct secvar_node *node, uint64_t size);
+void dealloc_secvar(struct secvar_node *node);
 struct secvar_node *find_secvar(const char *key, uint64_t key_len, struct list_head *bank);
 int is_key_empty(const char *key, uint64_t key_len);
 int list_length(struct list_head *bank);
