@@ -85,7 +85,7 @@ int TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex)
 {
 	TPM_RC rc;
 
-        TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
+        TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RH_NULL;
         TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
         TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
         unsigned int sessionAttributes0 = 0;
@@ -154,6 +154,7 @@ int TSS_NV_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 	in->nvIndex = nvIndex;
 	in->offset = off;
 	in->size = bufsize;
+	in->authHandle = nvIndex;
 
 	rc = get_context();
 	if (rc)
@@ -176,6 +177,9 @@ int TSS_NV_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 			bufsize = out->data.b.size;
 		memcpy(buf, out->data.b.buffer, bufsize);
 	}
+
+	if(rc)
+		traceError("TSS_NV_Read", rc);
 
 cleanup:
 	free(in);
@@ -200,7 +204,7 @@ int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 
 	NV_Write_In *in;
 
-	in = zalloc(sizeof(NV_Read_In));
+	in = zalloc(sizeof(NV_Write_In));
 	if (!in)
 		return -1;
 
@@ -221,7 +225,7 @@ int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 		NULL,
 		(COMMAND_PARAMETERS *) in,
 		NULL,
-		TPM_CC_NV_Read,
+		TPM_CC_NV_Write,
 		sessionHandle0, NULL, sessionAttributes0,
 		sessionHandle1, NULL, sessionAttributes1,
 		sessionHandle2, NULL, sessionAttributes2,
@@ -265,7 +269,7 @@ int TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex)
 		NULL,
 		(COMMAND_PARAMETERS *) in,
 		NULL,
-		TPM_CC_NV_Read,
+		TPM_CC_NV_WriteLock,
 		sessionHandle0, NULL, sessionAttributes0,
 		sessionHandle1, NULL, sessionAttributes1,
 		sessionHandle2, NULL, sessionAttributes2,
