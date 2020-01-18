@@ -20,10 +20,7 @@ void clear_bank_list(struct list_head *bank)
 
 	list_for_each_safe(bank, node, next, link) {
 		list_del(&node->link);
-
-		if (node->var)
-			free(node->var);
-		free(node);
+		dealloc_secvar(node);
 	}
 }
 
@@ -62,6 +59,15 @@ int realloc_secvar(struct secvar_node *node, uint64_t size)
 	node->var = tmp;
 
 	return 0;
+}
+
+void dealloc_secvar(struct secvar_node *node)
+{
+	if (!node)
+		return;
+
+	free(node->var);
+	free(node);
 }
 
 struct secvar_node *find_secvar(const char *key, uint64_t key_len, struct list_head *bank)
