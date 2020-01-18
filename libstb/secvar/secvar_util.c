@@ -64,6 +64,16 @@ int realloc_secvar(struct secvar_node *node, uint64_t size)
 	return 0;
 }
 
+void dealloc_secvar(struct secvar_node *node)
+{
+	if (!node)
+		return;
+
+	if (node->var)
+		free(node->var);
+	free(node);
+}
+
 struct secvar_node *find_secvar(const char *key, uint64_t key_len, struct list_head *bank)
 {
 	struct secvar_node *node = NULL;
