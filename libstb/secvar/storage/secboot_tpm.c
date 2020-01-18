@@ -210,7 +210,7 @@ static int secboot_tpm_store_init(void)
 	rc |= secvar_tpmnv_alloc(TPMNV_ID_HASH_BANK_0, SHA256_DIGEST_LENGTH);
 	rc |= secvar_tpmnv_alloc(TPMNV_ID_HASH_BANK_1, SHA256_DIGEST_LENGTH);
 	if (rc) {
-		prlog(PR_ERR, "unable to alloc or find the tpmnv space\n");
+		prlog(PR_ERR, "unable to alloc or find the tpmnv space, rc = %d\n", rc);
 		return rc;
 	}
 
