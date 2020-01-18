@@ -292,6 +292,7 @@ static bool is_single_pk(char *data, uint64_t data_size)
 	/* Calculate the size of new ESL data */
 	new_data_size = data_size - auth_buffer_size;
 	printf("new data size is %d\n", (int)new_data_size);
+
 	if (!new_data_size)
 		return true;
 
@@ -568,6 +569,11 @@ static int verify_signature(void *auth_buffer, char *newcert,
 			break;
 
 		signing_cert_size = get_esl_cert_size(avar->data + offset);
+		if (!signing_cert_size) {
+			rc = OPAL_PERMISSION;
+			break;	
+		}
+
 		signing_cert = zalloc(signing_cert_size);
 		get_esl_cert(avar->data + offset, &signing_cert);
 
@@ -588,6 +594,9 @@ static int verify_signature(void *auth_buffer, char *newcert,
 
 		/* If find a signing certificate, you are done */
 		if (rc == 0) {
+			if (signing_cert)
+				free(signing_cert);
+			mbedtls_x509_crt_free(&x509);
 			prlog(PR_INFO, "Signature Verification passed\n");
 			break;
 		}
@@ -600,14 +609,15 @@ static int verify_signature(void *auth_buffer, char *newcert,
 next:
 		offset += get_esl_signature_list_size(avar->data + offset);
 		eslvarsize = eslvarsize - offset;
+		mbedtls_x509_crt_free(&x509);
+		if (signing_cert)
+			free(signing_cert);
 
 	}
 
-	if (signing_cert)
-		free(signing_cert);
-
 pkcs7out:
 	mbedtls_pkcs7_free(pkcs7);
+	free(pkcs7);
 
 	return rc;
 }
