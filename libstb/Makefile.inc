@@ -16,6 +16,7 @@ include $(SRC)/$(LIBSTB_DIR)/tss2/Makefile.inc
 
 CPPFLAGS += -I$(SRC)/$(LIBSTB_DIR)/crypto/mbedtls/include
 CPPFLAGS += -I$(SRC)/$(LIBSTB_DIR)/ibmtpm20tss/utils
+CFLAGS += -DTPM_NOSOCKET -DTPM_SKIBOOT
 
 $(LIBSTB): $(LIBSTB_OBJS:%=$(LIBSTB_DIR)/%) $(DRIVERS) $(TSS) $(SECVAR) $(CRYPTO) $(TSS2)
 
