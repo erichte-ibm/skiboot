@@ -47,7 +47,7 @@
 #include <ibmtss/tssresponsecode.h>
 #include <ibmtss/Startup_fp.h>
 #include <ibmtss/tssprint.h>
-#include <libstb/tpm2.h>
+#include <tpm2.h>
 #include "tssproperties.h"
 #include "tssskiboot.h"
 
