@@ -29,13 +29,15 @@ $(SECVAR_TEST:%=%-check) : %-check: %
 	$(call QTEST, RUN-TEST ,$(VALGRIND) $<, $<)
 	@$(RM) -f secboot.img
 
+HOSTMBEDFLAGS += -lmbedcrypto -lmbedx509
+
 $(SECVAR_TEST) : core/test/stubs.o
 
 $(SECVAR_TEST) : % : %.c
-	$(call Q, HOSTCC ,$(HOSTCC) $(HOSTCFLAGS) -O0 -g -I include -I . -I libfdt -o $@ $< core/test/stubs.o, $<)
+	$(call Q, HOSTCC ,$(HOSTCC) $(HOSTCFLAGS) $(HOSTMBEDFLAGS) -O0 -g -I include -I . -I libfdt -o $@ $< core/test/stubs.o, $<)
 
 $(SECVAR_TEST:%=%-gcov): %-gcov : %.c %
-	$(call Q, HOSTCC ,$(HOSTCC) $(HOSTCFLAGS) $(HOSTGCOVCFLAGS) -I include -I . -I libfdt -lgcov -o $@ $< core/test/stubs.o, $<)
+	$(call Q, HOSTCC ,$(HOSTCC) $(HOSTCFLAGS) $(HOSTGCOVCFLAGS) $(HOSTMBEDFLAGS) -I include -I . -I libfdt -lgcov -o $@ $< core/test/stubs.o, $<)
 
 -include $(wildcard libstb/secvar/test/*.d)
 
