@@ -5,4 +5,4 @@
 [submodule "libstb/ibmtpm20tss"]
 	path = libstb/tss2/ibmtpm20tss
 	url = https://github.com/erichte-ibm/ibmtpm20tss
-	branch = stb/dev
+	branch = maurosr/v3-tss-skiboot
