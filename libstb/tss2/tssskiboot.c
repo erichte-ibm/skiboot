@@ -47,8 +47,7 @@
 #include <ibmtss/tssresponsecode.h>
 #include <ibmtss/Startup_fp.h>
 #include <ibmtss/tssprint.h>
-//#include <libstb/tpm2.h>
-#include "tpm2.h"
+#include <libstb/tpm2.h>
 #include "tssproperties.h"
 #include "tssskiboot.h"
 
@@ -210,8 +209,8 @@ int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 
 	in->nvIndex = nvIndex;
 	in->offset = off;
+	in->authHandle = nvIndex;
 
-	// TODO: wtf is this doing
 	rc = TSS_TPM2B_Create(&in->data.b, buf, bufsize, sizeof(in->data.t.buffer));
 	if (rc)
 		goto cleanup;
@@ -230,6 +229,9 @@ int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 		sessionHandle1, NULL, sessionAttributes1,
 		sessionHandle2, NULL, sessionAttributes2,
 		TPM_RH_NULL, NULL, 0);
+
+	if (rc)
+		traceError("TSS_NV_Write", rc);
 
 cleanup:
 	free(in);
