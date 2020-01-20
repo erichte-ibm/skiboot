@@ -37,6 +37,16 @@ const char *secvar_test_name = "edk2-compat";
 
 struct platform platform;
 
+// Stub out dt_find_property, as we don't have a test (yet) for physical presence
+const struct dt_property *dt_find_property(const struct dt_node *node,
+                                           const char *name)
+{
+	(void) node;
+	(void) name;
+	return NULL;
+}
+
+
 // Change to TSS-intercepting wrappers
 #define ARBITRARY_TPMNV_SIZE 2048
 char *secboot_buffer;
