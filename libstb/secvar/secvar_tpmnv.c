@@ -88,7 +88,7 @@ static int secvar_tpmnv_format(void)
 {
 	int rc;
 
-	memset(tpm_image, 0, sizeof(tpm_nv_size));
+	memset(tpm_image, 0, tpm_nv_size);
 
 	// TODO: Determine the proper auths
 	rc = tpmnv_ops->tss_nv_define_space(TPM_SECVAR_NV_INDEX, 'p', 'p', tpm_nv_size);
