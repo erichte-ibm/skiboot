@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+/* Copyright 2019 IBM Corp. */
 #ifndef _SECVAR_TPMNV_H_
 #define _SECVAR_TPMNV_H_
 #include <stdint.h>
