@@ -196,6 +196,8 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 
 	if (secvar_tpmnv_init())
 		return OPAL_RESOURCE;
+	if (size < -1)
+		return OPAL_PARAMETER;
 
 	cur = (char *) tpm_image->vars;
 	end = ((char *) tpm_image) + tpm_nv_size;
@@ -212,6 +214,10 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 	return OPAL_EMPTY;
 
 allocate:
+	// Ensure we have enough space for the allocation
+	if ((end - cur) < size)
+		return OPAL_EMPTY;
+
 	tmp->id = id;
 
 	// Special case: size of -1 gives remaining space
