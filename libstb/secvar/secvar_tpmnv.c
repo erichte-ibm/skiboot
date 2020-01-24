@@ -180,7 +180,7 @@ static struct tpm_nv_id *find_tpmnv_id(uint32_t id)
 			return NULL;
 		if (tmp->id == id)
 			return tmp;
-	     cur += sizeof(struct tpm_nv_id) + tmp->size;
+		cur += sizeof(struct tpm_nv_id) + tmp->size;
 	}
 
 	return NULL;
@@ -206,7 +206,7 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 		if (tmp->id == id)
 			return OPAL_SUCCESS; // Already allocated
 
-	     cur += sizeof(struct tpm_nv_id) + tmp->size;
+		cur += sizeof(struct tpm_nv_id) + tmp->size;
 	}
 	// We ran out of space...
 	return OPAL_EMPTY;
