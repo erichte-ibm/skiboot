@@ -137,8 +137,16 @@ static int secvar_tpmnv_init(void)
 
 	prlog(PR_INFO, "Reading in from TPM NV...\n");
 	rc = tpmnv_ops->tss_nv_read(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
-	if (rc) {
-		prlog(PR_INFO, "Failed to read from NV index, rc = %d\n", rc);
+	if (rc == TPM_RC_NV_UNINITIALIZED) {
+		rc = secvar_tpmnv_format();
+		if (rc) {
+			prlog(PR_ERR, "Failed to format tpmnv space, rc = %d\n", rc);
+			tpm_error = 1;
+			return OPAL_HARDWARE;
+		}
+	}
+	else if (rc) {
+		prlog(PR_ERR, "Failed to read from NV index, rc = %d\n", rc);
 		tpm_error = 1;
 		return OPAL_HARDWARE;
 	}
