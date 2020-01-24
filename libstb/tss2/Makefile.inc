@@ -13,10 +13,10 @@ TSS2LIB_SRCS = tss.c tss20.c tssauth.c tssauth20.c tssccattributes.c
 TSS2LIB_SRCS += tssmarshal.c tssprint.c tssprintcmd.c tssproperties.c
 TSS2LIB_SRCS += tssresponsecode.c tsstransmit.c tssutils.c tssntc.c
 TSS2LIB_SRCS += Commands.c CommandAttributeData.c Unmarshal.c
-TSS2LIB_SRCS += tssdevskiboot.c 
+TSS2LIB_SRCS += tssdevskiboot.c
 
 TSS2_SRCS = $(addprefix ibmtpm20tss/utils/,$(TSS2LIB_SRCS)) tpm2.c
-TSS2_SRCS += tpm2.c
+TSS2_SRCS += tpm2.c tssskiboot.c
 
 #tsscryptombed.c tsscryptouv.c tssdevuv.c tssuv.c
 #tssskiboot.c eventlog.c eventlib.c tpm_nv.c opalcreate.c
