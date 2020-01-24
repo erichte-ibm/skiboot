@@ -215,7 +215,7 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 
 allocate:
 	// Ensure we have enough space for the allocation
-	if ((end - cur) < size)
+	if ((end - cur) < size + sizeof(struct tpm_nv_id))
 		return OPAL_EMPTY;
 
 	tmp->id = id;
