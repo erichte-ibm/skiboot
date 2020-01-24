@@ -234,8 +234,10 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 {
 	struct tpm_nv_id *var;
 
-	if (secvar_tpmnv_init())
+	if (!tpm_ready)
 		return OPAL_RESOURCE;
+	if (tpm_error)
+		return OPAL_HARDWARE;
 
 	var = find_tpmnv_id(id);
 	if (!var)
@@ -252,8 +254,10 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 {
 	struct tpm_nv_id *var;
 
-	if (secvar_tpmnv_init())
+	if (!tpm_ready)
 		return OPAL_RESOURCE;
+	if (tpm_error)
+		return OPAL_HARDWARE;
 
 	var = find_tpmnv_id(id);
 	if (!var)
@@ -269,8 +273,10 @@ uint32_t secvar_tpmnv_size(uint32_t id)
 {
 	struct tpm_nv_id *var;
 
-	if (secvar_tpmnv_init())
+	if (!tpm_ready)
 		return OPAL_RESOURCE;
+	if (tpm_error)
+		return OPAL_HARDWARE;
 
 	var = find_tpmnv_id(id);
 	if (!var)
