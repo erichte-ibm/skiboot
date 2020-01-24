@@ -251,7 +251,7 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 	return tpmnv_ops->tss_nv_write(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
 }
 
-int secvar_tpmnv_size(uint32_t id)
+uint32_t secvar_tpmnv_size(uint32_t id)
 {
 	struct tpm_nv_id *var;
 
