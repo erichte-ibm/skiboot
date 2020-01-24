@@ -174,16 +174,26 @@ static struct tpm_nv_id *find_tpmnv_id(uint32_t id)
 
 	cur = (char *) tpm_image->vars;
 	end = ((char *) tpm_image) + tpm_nv_size;
-	while (cur < end) {
+	while (cur + sizeof(struct tpm_nv_id) < end) {
 		tmp = (struct tpm_nv_id *) cur;
 		if (tmp->id == 0)
 			return NULL;
 		if (tmp->id == id)
-			return tmp;
+			goto out;
+
 		cur += sizeof(struct tpm_nv_id) + tmp->size;
 	}
 
 	return NULL;
+out:
+	if (end < sizeof(struct tpm_nv_id) + tmp->size + cur) {
+		// This should not happen
+		prlog(PR_ERR, "BUG: NV id size overflow, id=%u, size=%u, end=%p\n",
+		      id, tmp->size, end);
+		return NULL
+	}
+
+	return tmp;
 }
 
 
@@ -246,7 +256,7 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 	size = MIN(size, var->size);
 	memcpy(buf, var->data + off, size);
 
-	return 0;
+	return OPAL_SUCCESS;
 }
 
 
