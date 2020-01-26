@@ -80,7 +80,7 @@
 #define MBEDTLS_SHA512_C
 #define MBEDTLS_X509_USE_C
 #define MBEDTLS_X509_CRT_PARSE_C
-//#define MBEDTLS_X509_CRL_PARSE_C
+#define MBEDTLS_X509_CRL_PARSE_C
 //#define MBEDTLS_CMAC_C
 
 /* Settings to reduce/remove warnings */
