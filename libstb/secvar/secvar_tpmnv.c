@@ -253,7 +253,10 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 	if (!var)
 		return OPAL_EMPTY;
 
-	size = MIN(size, var->size);
+	if (var->size < off)
+		return OPAL_PARAMETER;
+
+	size = MIN(size, var->size - off);
 	memcpy(buf, var->data + off, size);
 
 	return OPAL_SUCCESS;
@@ -273,7 +276,10 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 	if (!var)
 		return OPAL_EMPTY;
 
-	size = MIN(size, var->size);
+	if (var->size < off)
+		return OPAL_PARAMETER;
+
+	size = MIN(size, var->size - off);
 	memcpy(var->data, buf + off, size);
 
 	return tpmnv_ops->tss_nv_write(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
