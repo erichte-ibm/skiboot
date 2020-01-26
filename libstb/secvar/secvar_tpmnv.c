@@ -8,6 +8,7 @@
 #include <skiboot.h>
 #include <string.h>
 #include <tssskiboot.h>
+#include <ibmtss/TPM_Types.h>
 #include "secvar_tpmnv.h"
 
 #define TPM_SECVAR_NV_INDEX	0x01c10191
