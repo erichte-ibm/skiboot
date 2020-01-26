@@ -32,8 +32,8 @@ int tpm_first_init = 0;
 struct tpm_nv *tpm_image;
 size_t tpm_nv_size = 0;
 
-// Values set by a platform to enable TPMNV simulation mode
-// NOT INTENDED FOR PRODUCTION USE
+/* Values set by a platform to enable TPMNV simulation mode
+ * NOT INTENDED FOR PRODUCTION USE */
 int tpm_fake_nv = 0;			// Use fake NV mode using pnor
 uint64_t tpm_fake_nv_offset = 0;	// Offset into SECBOOT pnor to use
 uint64_t tpm_fake_nv_max_size = 0;
@@ -83,8 +83,7 @@ struct tpmnv_ops_s Fake_tpmnv_ops = {
 
 struct tpmnv_ops_s *tpmnv_ops = &TSS_tpmnv_ops;
 
-// This function should be replaced with logic that performs the initial
-// TPM NV Index definition, and any first-write logic
+
 static int secvar_tpmnv_format(void)
 {
 	int rc;
@@ -118,11 +117,8 @@ static int secvar_tpmnv_init(void)
 
 	prlog(PR_INFO, "Initializing TPMNV space...\n");
 
-	// Check here if TPM NV Index is defined
-	//   if not, call secvar_tpmnv_format() here
-
-	// Using the minimum defined by the spec for now
-	// This value should probably be determined by tss_get_capatibility
+	/* Using the largest minimum required for now,
+	 * This is a candidate for platforms or drivers to negotiate */
 	tpm_nv_size = 1024;
 
 	tpm_image = malloc(tpm_nv_size);
@@ -188,7 +184,7 @@ static struct tpm_nv_id *find_tpmnv_id(uint32_t id)
 	return NULL;
 out:
 	if (end < sizeof(struct tpm_nv_id) + tmp->size + cur) {
-		// This should not happen
+		/* This should not happen, unless TPM NV space changed somehow */
 		prlog(PR_ERR, "BUG: NV id size overflow, id=%u, size=%u, end=%p\n",
 		      id, tmp->size, end);
 		return NULL;
@@ -198,7 +194,6 @@ out:
 }
 
 
-// "Allocate" space within the secvar tpm
 int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 {
 	struct tpm_nv_id *tmp;
@@ -221,17 +216,17 @@ int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 
 		cur += sizeof(struct tpm_nv_id) + tmp->size;
 	}
-	// We ran out of space...
+
 	return OPAL_EMPTY;
 
 allocate:
-	// Ensure we have enough space for the allocation
+	/* Ensure we have enough space for the allocation */
 	if ((end - cur) < size + sizeof(struct tpm_nv_id))
 		return OPAL_EMPTY;
 
 	tmp->id = id;
 
-	// Special case: size of -1 gives remaining space
+	/* Special case: size of -1 gives remaining space */
 	if (size == -1)
 		tmp->size = end - tmp->data;
 	else
