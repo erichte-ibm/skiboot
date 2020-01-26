@@ -190,7 +190,7 @@ out:
 		// This should not happen
 		prlog(PR_ERR, "BUG: NV id size overflow, id=%u, size=%u, end=%p\n",
 		      id, tmp->size, end);
-		return NULL
+		return NULL;
 	}
 
 	return tmp;
