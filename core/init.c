@@ -38,6 +38,7 @@
 #include <vas.h>
 #include <libstb/secureboot.h>
 #include <libstb/trustedboot.h>
+#include <libstb/tss2/tssskiboot.h>
 #include <phys-map.h>
 #include <imc.h>
 #include <dts.h>
@@ -555,6 +556,8 @@ void __noreturn load_and_boot_kernel(bool is_reboot)
 	}
 
 	load_initramfs();
+
+	tss_set_platform_auth();
 
 	trustedboot_exit_boot_services();
 
