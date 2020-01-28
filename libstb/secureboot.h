@@ -17,6 +17,7 @@ enum secureboot_version {
 
 bool secureboot_is_compatible(struct dt_node *node, int *version, const char **compat);
 void secureboot_init(void);
+bool is_fw_secureboot(void);
 
 /**
  * secureboot_verify - verify a PNOR partition content
