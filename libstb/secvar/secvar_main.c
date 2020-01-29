@@ -56,15 +56,20 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	secvar_ready = 1;
 	secvar_set_status("okay");
 
-	if (secvar_backend.pre_process)
+	if (secvar_backend.pre_process) {
 		rc = secvar_backend.pre_process();
+		if (rc) {
+			prlog(PR_ERR, "Error in backend pre_process = %d\n", rc);
+			goto out;
+		}
+	}
 
 	// Process is required, error if it doesn't exist
 	if (!secvar_backend.process)
 		goto out;
 
 	rc = secvar_backend.process();
-		secvar_set_update_status(rc);
+	secvar_set_update_status(rc);
 	if (rc == OPAL_SUCCESS) {
 		rc = secvar_storage.write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 		if (rc)
@@ -75,10 +80,13 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 			goto out;
 	}
 
-	if (secvar_backend.post_process)
+	if (secvar_backend.post_process) {
 		rc = secvar_backend.post_process();
-	if (rc)
-		goto out;
+		if (rc) {
+			prlog(PR_ERR, "Error in backend post_process = %d\n", rc);
+			goto out;
+		}
+	}
 
 	prlog(PR_INFO, "secvar initialized successfully\n");
 
