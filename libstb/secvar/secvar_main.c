@@ -60,6 +60,8 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		rc = secvar_backend.pre_process();
 		if (rc) {
 			prlog(PR_ERR, "Error in backend pre_process = %d\n", rc);
+			/* Early failure state, lock the storage */
+			secvar_storage.lock();
 			goto out;
 		}
 	}
@@ -79,6 +81,8 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		if (rc)
 			goto out;
 	}
+	/* Unconditionally lock the storage at this point */
+	secvar_storage.lock();
 
 	if (secvar_backend.post_process) {
 		rc = secvar_backend.post_process();
