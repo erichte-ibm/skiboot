@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <skiboot.h>
 #include <opal.h>
+#include <libstb/secureboot.h>
 #include "secvar.h"
 #include "secvar_devtree.h"
 
@@ -39,11 +40,15 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	list_head_init(&variable_bank);
 	list_head_init(&update_bank);
 
+	/* Failures here should indicate some kind of hardware problem,
+	 * therefore we don't even attempt to continue */
 	rc = secvar_storage.store_init();
 	if (rc)
-		goto fail;
+		secureboot_enforce();
 
-	/* Failures here should indicate some kind of hardware problem */
+	/* Failures here may be recoverable,
+	 *  (PNOR was corrupted, restore from backup)
+	 * so we want to boot up to skiroot to give the user a chance to fix */
 	rc = secvar_storage.load_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	if (rc)
 		goto fail;
@@ -61,6 +66,8 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		rc = secvar_backend.pre_process();
 		if (rc) {
 			prlog(PR_ERR, "Error in backend pre_process = %d\n", rc);
+			/* Early failure state, lock the storage */
+			secvar_storage.lock();
 			goto out;
 		}
 	}
@@ -83,11 +90,20 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 					       SECVAR_VARIABLE_BANK);
 		if (rc)
 			goto out;
-
-		rc = secvar_storage.write_bank(&update_bank, SECVAR_UPDATE_BANK);
+	}
+	/* Write (and probably clear) the update bank if .process() actually
+	 * detected and handled updates in the update bank. Unlike above, this
+	 * includes error cases, where the backend should probably be clearing
+	 * the bank.
+	 */
+	if (rc != OPAL_EMPTY) {
+		rc = secvar_storage.write_bank(&update_bank,
+					       SECVAR_UPDATE_BANK);
 		if (rc)
 			goto out;
 	}
+	/* Unconditionally lock the storage at this point */
+	secvar_storage.lock();
 
 	if (secvar_backend.post_process) {
 		rc = secvar_backend.post_process();
@@ -100,9 +116,23 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	prlog(PR_INFO, "secvar initialized successfully\n");
 
 	return OPAL_SUCCESS;
+
 fail:
+	/* Early failure, base secvar support failed to initialize */
 	secvar_set_status("fail");
+	secvar_storage.lock();
+	secvar_set_secure_mode();
+
+	prerror("secvar failed to initialize, rc = %04x\n", rc);
+	return rc;
+
 out:
+	/* Soft-failure, enforce secure boot in bootloader for debug/recovery */
+	clear_bank_list(&variable_bank);
+	clear_bank_list(&update_bank);
+	secvar_storage.lock();
+	secvar_set_secure_mode();
+
 	prerror("secvar failed to initialize, rc = %04x\n", rc);
 	return rc;
 }
