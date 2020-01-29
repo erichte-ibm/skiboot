@@ -9,9 +9,10 @@
 struct secvar;
 
 struct secvar_storage_driver {
-        int (*load_bank)(struct list_head *bank, int section);
-        int (*write_bank)(struct list_head *bank, int section);
-        int (*store_init)(void);
+	int (*load_bank)(struct list_head *bank, int section);
+	int (*write_bank)(struct list_head *bank, int section);
+	int (*store_init)(void);
+	void (*lock)(void);
 	uint64_t max_var_size;
 };
 
