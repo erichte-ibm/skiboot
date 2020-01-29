@@ -259,9 +259,16 @@ out_free:
 	return rc;
 }
 
+
+static void secboot_tpm_lock(void)
+{
+	// TODO: lock the bank here
+}
+
 struct secvar_storage_driver secboot_tpm_driver = {
 	.load_bank = secboot_tpm_load_bank,
 	.write_bank = secboot_tpm_write_bank,
 	.store_init = secboot_tpm_store_init,
+	.lock = secboot_tpm_lock,
 	.max_var_size = 8192,
 };
