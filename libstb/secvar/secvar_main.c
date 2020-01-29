@@ -14,10 +14,10 @@
 struct list_head variable_bank;
 struct list_head update_bank;
 
-int secvar_enabled = 0;	// Set to 1 if secvar is supported
-int secvar_ready = 0;	// Set to 1 when base secvar inits correctly
+int secvar_enabled = 0;	/* Set to 1 if secvar is supported */
+int secvar_ready = 0;	/* Set to 1 when base secvar inits correctly */
 
-// To be filled in by platform.secvar_init
+/* To be filled in by platform.secvar_init */
 struct secvar_storage_driver secvar_storage = {0};
 struct secvar_backend_driver secvar_backend = {0};
 
@@ -43,7 +43,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	if (rc)
 		goto fail;
 
-	// Failures here should indicate some kind of hardware problem
+	/* Failures here should indicate some kind of hardware problem */
 	rc = secvar_storage.load_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	if (rc)
 		goto fail;
@@ -52,21 +52,35 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	if (rc)
 		goto fail;
 
-	// At this point, base secvar is functional. Rest is up to the backend
+	/* At this point, base secvar is functional.
+	 * The rest is up to the backend */
 	secvar_ready = 1;
 	secvar_set_status("okay");
 
-	if (secvar_backend.pre_process)
+	if (secvar_backend.pre_process) {
 		rc = secvar_backend.pre_process();
+		if (rc) {
+			prlog(PR_ERR, "Error in backend pre_process = %d\n", rc);
+			goto out;
+		}
+	}
 
-	// Process is required, error if it doesn't exist
+	/* Process is required, error if it doesn't exist */
 	if (!secvar_backend.process)
 		goto out;
 
+	/* Process variable updates from the update bank. */
 	rc = secvar_backend.process();
-		secvar_set_update_status(rc);
+
+	/* Create and set the update-status device tree property */
+	secvar_set_update_status(rc);
+
+	/* Only write to the storage if we actually processed updates
+	 * OPAL_EMPTY implies no updates were processed
+	 * Refer to full table in doc/device-tree/ibm,opal/secvar.rst */
 	if (rc == OPAL_SUCCESS) {
-		rc = secvar_storage.write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
+		rc = secvar_storage.write_bank(&variable_bank,
+					       SECVAR_VARIABLE_BANK);
 		if (rc)
 			goto out;
 
@@ -75,10 +89,13 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 			goto out;
 	}
 
-	if (secvar_backend.post_process)
+	if (secvar_backend.post_process) {
 		rc = secvar_backend.post_process();
-	if (rc)
-		goto out;
+		if (rc) {
+			prlog(PR_ERR, "Error in backend post_process = %d\n", rc);
+			goto out;
+		}
+	}
 
 	prlog(PR_INFO, "secvar initialized successfully\n");
 
