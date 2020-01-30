@@ -34,12 +34,12 @@
 /* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.		*/
 /********************************************************************************/
 
+#ifdef __SKIBOOT__
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <tpm2.h>
-#include <tssskiboot.h>
 
 #include <ibmtss/tss.h>
 #include <ibmtss/tssfile.h>
@@ -47,53 +47,60 @@
 #include <ibmtss/tssresponsecode.h>
 #include <ibmtss/Startup_fp.h>
 #include <ibmtss/tssprint.h>
+#include <tpm2.h>
 #include "tssproperties.h"
+#include "tssskiboot.h"
 
 static TSS_CONTEXT *context = NULL;
 
-TPM_RC get_context(void){
+static TPM_RC get_context(void){
 	TPM_RC rc = TPM_RC_SUCCESS;
 
 	if(!context){
 		rc = TSS_Create(&context);
 		if(rc)
 			return rc;
+
 		context->tpm_device = tpm2_get_device();
 		context->tpm_driver = tpm2_get_driver();
 		context->tssInterfaceType = "skiboot";
 	}
+
 	return rc;
 }
 
 static void traceError(const char *command, TPM_RC rc)
 {
-	const char *msg;
-	const char *submsg;
-	const char *num;
-	printf("%s: failed, rc %08x\n", command, rc);
-	TSS_ResponseCode_toString(&msg, &submsg, &num, rc);
-	printf("%s%s%s\n", msg, submsg, num);
+    const char *msg;
+    const char *submsg;
+    const char *num;
+    printf("%s: failed, rc %08x\n", command, rc);
+    TSS_ResponseCode_toString(&msg, &submsg, &num, rc);
+    printf("%s%s%s\n", msg, submsg, num);
 }
 
-TPM_RC TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex)
+
+int TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex)
 {
-	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
-	unsigned int sessionAttributes0 = 0;
-	unsigned int sessionAttributes1 = 0;
-	unsigned int sessionAttributes2 = 0;
-	NV_ReadPublic_Out *out;
-	NV_ReadPublic_In *in;
 	TPM_RC rc;
+
+        TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RH_NULL;
+        TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
+        TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
+        unsigned int sessionAttributes0 = 0;
+        unsigned int sessionAttributes1 = 0;
+        unsigned int sessionAttributes2 = 0;
+
+	NV_ReadPublic_In *in;
+	NV_ReadPublic_Out *out;
 
 	in = zalloc(sizeof(NV_ReadPublic_In));
 	if (!in)
-		return 1;
+		return -1;
 	out = zalloc(sizeof(NV_ReadPublic_Out));
 	if (!out) {
 		free(in);
-		return 1;
+		return -1;
 	}
 
 	in->nvIndex = nvIndex;
@@ -103,34 +110,36 @@ TPM_RC TSS_NV_Read_Public(TPMI_RH_NV_INDEX nvIndex)
 		goto cleanup;
 
 	rc = TSS_Execute(context,
-			 (RESPONSE_PARAMETERS *) out,
-			 (COMMAND_PARAMETERS *) in,
-			 NULL,
-			 TPM_CC_NV_ReadPublic,
-			 sessionHandle0, NULL, sessionAttributes0,
-			 sessionHandle1, NULL, sessionAttributes1,
-			 sessionHandle2, NULL, sessionAttributes2,
-			 TPM_RH_NULL, NULL, 0);
+		(RESPONSE_PARAMETERS *) out,
+		(COMMAND_PARAMETERS *) in,
+		NULL,
+		TPM_CC_NV_ReadPublic,
+		sessionHandle0, NULL, sessionAttributes0,
+		sessionHandle1, NULL, sessionAttributes1,
+		sessionHandle2, NULL, sessionAttributes2,
+		TPM_RH_NULL, NULL, 0);
 
 cleanup:
 	free(in);
 	free(out);
 
-	return rc? 1: 0 ;
+	return rc;
 }
 
 
-TPM_RC TSS_NV_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+int TSS_NV_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 {
-	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
-	unsigned int sessionAttributes0 = 0;
-	unsigned int sessionAttributes1 = 0;
-	unsigned int sessionAttributes2 = 0;
-	NV_Read_Out *out;
-	NV_Read_In *in;
 	int rc;
+
+        TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
+        TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
+        TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
+        unsigned int sessionAttributes0 = 0;
+        unsigned int sessionAttributes1 = 0;
+        unsigned int sessionAttributes2 = 0;
+
+	NV_Read_In *in;
+	NV_Read_Out *out;
 
 	in = zalloc(sizeof(NV_Read_In));
 	if (!in)
@@ -144,6 +153,7 @@ TPM_RC TSS_NV_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t
 	in->nvIndex = nvIndex;
 	in->offset = off;
 	in->size = bufsize;
+	in->authHandle = nvIndex;
 
 	rc = get_context();
 	if (rc)
@@ -167,31 +177,39 @@ TPM_RC TSS_NV_Read(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t
 		memcpy(buf, out->data.b.buffer, bufsize);
 	}
 
+	if(rc)
+		traceError("TSS_NV_Read", rc);
+
 cleanup:
 	free(in);
 	free(out);
 
 	return rc;
+
+
 }
 
 
-TPM_RC TSS_NV_Write(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_t off)
+int TSS_NV_Write(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
 {
-	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
-	unsigned int sessionAttributes0 = 0;
-	unsigned int sessionAttributes1 = 0;
-	unsigned int sessionAttributes2 = 0;
-	NV_Write_In *in;
 	int rc;
 
-	in = zalloc(sizeof(NV_Read_In));
+        TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
+        TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
+        TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
+        unsigned int sessionAttributes0 = 0;
+        unsigned int sessionAttributes1 = 0;
+        unsigned int sessionAttributes2 = 0;
+
+	NV_Write_In *in;
+
+	in = zalloc(sizeof(NV_Write_In));
 	if (!in)
 		return -1;
 
 	in->nvIndex = nvIndex;
 	in->offset = off;
+	in->authHandle = nvIndex;
 
 	rc = TSS_TPM2B_Create(&in->data.b, buf, bufsize, sizeof(in->data.t.buffer));
 	if (rc)
@@ -203,35 +221,45 @@ TPM_RC TSS_NV_Write(TPMI_RH_NV_INDEX nvIndex, void *buf, size_t bufsize, uint64_
 
 	// TODO: Wrap this in multiple writes based on NV Buffer Max (1024)
 	rc = TSS_Execute(context,
-			 NULL,
-			 (COMMAND_PARAMETERS *) in,
-			 NULL,
-			 TPM_CC_NV_Read,
-			 sessionHandle0, NULL, sessionAttributes0,
-			 sessionHandle1, NULL, sessionAttributes1,
-			 sessionHandle2, NULL, sessionAttributes2,
-			 TPM_RH_NULL, NULL, 0);
+		NULL,
+		(COMMAND_PARAMETERS *) in,
+		NULL,
+		TPM_CC_NV_Write,
+		sessionHandle0, NULL, sessionAttributes0,
+		sessionHandle1, NULL, sessionAttributes1,
+		sessionHandle2, NULL, sessionAttributes2,
+		TPM_RH_NULL, NULL, 0);
+
+	if (rc)
+		traceError("TSS_NV_Write", rc);
 
 cleanup:
 	free(in);
+
 	return rc;
+
+
 }
 
 
-TPM_RC TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex)
+int TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex)
 {
-	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
-	unsigned int sessionAttributes0 = 0;
-	unsigned int sessionAttributes1 = 0;
-	unsigned int sessionAttributes2 = 0;
-	NV_WriteLock_In *in;
 	int rc;
+
+        TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
+        TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
+        TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
+        unsigned int sessionAttributes0 = 0;
+        unsigned int sessionAttributes1 = 0;
+        unsigned int sessionAttributes2 = 0;
+
+	NV_WriteLock_In *in;
 
 	in = zalloc(sizeof(NV_Read_In));
 	if (!in)
 		return -1;
+
+	// TODO: make this an arg probably?
 	in->authHandle = 'p';
 	in->nvIndex = nvIndex;
 
@@ -240,18 +268,21 @@ TPM_RC TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex)
 		goto cleanup;
 
 	rc = TSS_Execute(context,
-			 NULL,
-			 (COMMAND_PARAMETERS *) in,
-			 NULL,
-			 TPM_CC_NV_Read,
-			 sessionHandle0, NULL, sessionAttributes0,
-			 sessionHandle1, NULL, sessionAttributes1,
-			 sessionHandle2, NULL, sessionAttributes2,
-			 TPM_RH_NULL, NULL, 0);
+		NULL,
+		(COMMAND_PARAMETERS *) in,
+		NULL,
+		TPM_CC_NV_WriteLock,
+		sessionHandle0, NULL, sessionAttributes0,
+		sessionHandle1, NULL, sessionAttributes1,
+		sessionHandle2, NULL, sessionAttributes2,
+		TPM_RH_NULL, NULL, 0);
 
 cleanup:
 	free(in);
+
 	return rc;
+
+
 }
 
 
@@ -259,14 +290,16 @@ int TSS_NV_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
 			const char hierarchy_authorization,
 			uint16_t dataSize)
 {
-	TPMA_NV nvAttributes, setAttributes, clearAttributes;
 	//NOTE(maurosr): we don't care with session values so far
+	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
 	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
 	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RS_PW;
 	unsigned int sessionAttributes0 = 0;
 	unsigned int sessionAttributes1 = 0;
 	unsigned int sessionAttributes2 = 0;
+
+
+	TPMA_NV nvAttributes, setAttributes, clearAttributes;
 
 
 	TPMI_ALG_HASH nalg = TPM_ALG_SHA256;
@@ -310,6 +343,7 @@ int TSS_NV_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
 			nvAttributes.val |= TPMA_NVA_PLATFORMCREATE;
 			break;
 		case 'o':
+			nvAttributes.val |= TPMA_NVA_PLATFORMCREATE;
 			in->authHandle = TPM_RH_OWNER;
 			break;
 		default:
@@ -318,13 +352,14 @@ int TSS_NV_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
 			goto cleanup;
 	}
 
+
 	if (typeChar == 'o')
 		nvAttributes.val |= TPMA_NVA_ORDINARY;
 	else{
 		printf("TypeChar is set to somehing other than 'o', please add code to support that\n");
 		rc = 1;
 		goto cleanup;
-	}
+        }
 
 	/*
 	 * NOTE(maurosr): This should receive proper piece of code for password
@@ -336,15 +371,19 @@ int TSS_NV_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
 	if (nvPassword == NULL)
 		in->auth.b.size = 0;
 	else{
+
 		printf("Password is not NULL, you need to add code for supporting this case. Aborting...\n");
 		rc = 1;
 		goto cleanup;
 	}
+
 	// Empty policy, support for non-empty should be added
 	in->publicInfo.nvPublic.authPolicy.t.size = 0;
+
 	in->publicInfo.nvPublic.nvIndex = nvIndex;
 	// Default alg is SHA256, support for customizing this should be added.
 	in->publicInfo.nvPublic.nameAlg = nalg;
+
 	/*
 	 * This carries the flags set according to default settings, excepting
 	 * for what is set by this function parameters. Further customization
@@ -352,8 +391,10 @@ int TSS_NV_Define_Space(TPMI_RH_NV_INDEX nvIndex, const char hierarchy,
 	 * TSS's code.
 	 * */
 	in->publicInfo.nvPublic.attributes = nvAttributes;
+
 	in->publicInfo.nvPublic.attributes.val |= setAttributes.val;
 	in->publicInfo.nvPublic.attributes.val &= ~(clearAttributes.val);
+
 	in->publicInfo.nvPublic.dataSize = dataSize;
 
 	rc = TSS_Execute(context,
@@ -383,15 +424,18 @@ cleanup:
  * @param digest	The digest data.
  */
 int TSS_PCR_Extend(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *hashes,
-		   uint8_t hashes_len, const char *digest)
+		      uint8_t hashes_len, const char *digest)
 {
 	PCR_Extend_In *in = calloc(1, sizeof(PCR_Extend_In));
+
 	uint32_t rc = 1;
 
 	if(!in || (strlen(digest) > sizeof(TPMU_HA)) )
 		return 1;
+
 	if(hashes_len >= HASH_COUNT)
 		goto exit;
+
 	rc = get_context();
 	if(rc)
 		goto exit;
@@ -415,6 +459,7 @@ int TSS_PCR_Extend(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *hashes,
 	if (rc !=  0){
 		traceError("TSS_PCR_Extend", rc);
 	}
+
 exit:
 	free(in);
 	return rc? 1: 0;
@@ -432,6 +477,8 @@ int TSS_PCR_Read(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *hashes,
 	PCR_Read_Out *out;
 	PCR_Read_In *in;
 	uint32_t rc = 1;
+
+	TSS_SetProperty(NULL, TPM_TRACE_LEVEL, "2");
 
 	if (hashes_len >= HASH_COUNT)
 		return 1;
@@ -458,6 +505,7 @@ int TSS_PCR_Read(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *hashes,
 		in->pcrSelectionIn.pcrSelections[i].pcrSelect[2] = 0;
 		in->pcrSelectionIn.pcrSelections[i].pcrSelect[pcrHandle/8] = 1 << (pcrHandle % 8);
 	}
+
 	rc = TSS_Execute(context,
 			 (RESPONSE_PARAMETERS *) out,
 			 (COMMAND_PARAMETERS *) in,
@@ -465,8 +513,10 @@ int TSS_PCR_Read(TPMI_DH_PCR pcrHandle, TPMI_ALG_HASH *hashes,
 			 TPM_CC_PCR_Read,
                          sessionHandle0, NULL, sessionAttributes0,
 			 TPM_RH_NULL, NULL, 0);
+
 	if (rc !=  0)
 		traceError("newTSS_PCR_Read", rc);
+
 
 cleanup_all:
 	free(out);
@@ -474,30 +524,4 @@ cleanup_in:
 	free(in);
 	return rc? 1: 0;
 }
-
-int TSS_Get_Random_Number(char *buffer, size_t len){
-	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
-	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
-	unsigned int sessionAttributes0 = 0;
-	unsigned int sessionAttributes1 = 0;
-	unsigned int sessionAttributes2 = 0;
-	TSS_CONTEXT *tssContext = NULL;
-	GetRandom_Out out;
-	GetRandom_In in;
-	TPM_RC rc = 0;
-
-	in.bytesRequested = len;
-        rc = TSS_Execute(tssContext,
-                         (RESPONSE_PARAMETERS *)&out,
-                         (COMMAND_PARAMETERS *)&in,
-                         NULL, TPM_CC_GetRandom,
-			 sessionHandle0, NULL, sessionAttributes0,
-                         sessionHandle1, NULL, sessionAttributes1,
-                         sessionHandle2, NULL, sessionAttributes2,
-                         TPM_RH_NULL, NULL, 0);
-	if (rc != 0)
-		return -1;
-	memcpy(buffer, out.randomBytes.t.buffer, len);
-	return rc;
-}
+#endif /* __SKIBOOT__ */
