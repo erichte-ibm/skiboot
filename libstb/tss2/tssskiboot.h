@@ -57,6 +57,7 @@ int TSS_NV_WriteLock(TPMI_RH_NV_INDEX nvIndex);
 int TSS_NV_Define_Space(uint32_t nvIndex, const char hierarchy,
 			const char hierarchy_authorization,
 			uint16_t dataSize);
+int TSS_Get_Random_Number(char *buffer, size_t len);
 
 #endif /* TSSSKIBOOT_H */
 #endif /* __SKIBOOT__ */
