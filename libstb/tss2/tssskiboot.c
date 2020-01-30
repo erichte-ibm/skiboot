@@ -524,4 +524,36 @@ cleanup_in:
 	free(in);
 	return rc? 1: 0;
 }
+
+int TSS_Get_Random_Number(char *buffer, size_t len)
+{
+	TPMI_SH_AUTH_SESSION sessionHandle0 = TPM_RH_NULL;
+	TPMI_SH_AUTH_SESSION sessionHandle1 = TPM_RH_NULL;
+	TPMI_SH_AUTH_SESSION sessionHandle2 = TPM_RH_NULL;
+	unsigned int sessionAttributes0 = 0;
+	unsigned int sessionAttributes1 = 0;
+	unsigned int sessionAttributes2 = 0;
+	TSS_CONTEXT *tssContext = NULL;
+	GetRandom_Out out;
+	GetRandom_In in;
+	TPM_RC rc = 0;
+
+	in.bytesRequested = len;
+	rc = TSS_Execute(tssContext,
+		(RESPONSE_PARAMETERS *)&out,
+		(COMMAND_PARAMETERS *)&in,
+		NULL, TPM_CC_GetRandom,
+		sessionHandle0, NULL, sessionAttributes0,
+		sessionHandle1, NULL, sessionAttributes1,
+		sessionHandle2, NULL, sessionAttributes2,
+		TPM_RH_NULL, NULL, 0);
+
+	if (rc != 0)
+	       return -1;
+
+	memcpy(buffer, out.randomBytes.t.buffer, len);
+
+	return rc;
+}
+
 #endif /* __SKIBOOT__ */
