@@ -21,10 +21,8 @@
 #include "secvar_common_test.c"
 #include "../backend/edk2-compat.c"
 #include "../secvar_util.c"
-#include "../secvar_tpmnv.c"
 #define MBEDTLS_PKCS7_USE_C
 #include "../../crypto/pkcs7/pkcs7.c"
-#include <platform.h>
 #include "./data/edk2_test_data.h"
 #include "./data/PK1.h"
 #include "./data/noPK.h"
@@ -35,8 +33,6 @@
 
 const char *secvar_test_name = "edk2-compat";
 
-struct platform platform;
-
 // Stub out dt_find_property, as we don't have a test (yet) for physical presence
 const struct dt_property *dt_find_property(const struct dt_node *node,
                                            const char *name)
@@ -44,24 +40,6 @@ const struct dt_property *dt_find_property(const struct dt_node *node,
 	(void) node;
 	(void) name;
 	return NULL;
-}
-
-
-// Change to TSS-intercepting wrappers
-#define ARBITRARY_TPMNV_SIZE 2048
-char *secboot_buffer;
-static int secboot_read(void *dst, uint32_t src, uint32_t len)
-{
-	(void) src; // Don't need to use offset here
-	memcpy(dst, secboot_buffer, len);
-	return 0;
-}
-
-static int secboot_write(uint32_t dst, void *src, uint32_t len)
-{
-	(void) dst;
-	memcpy(secboot_buffer, src, len);
-	return 0;
 }
 
 int secvar_set_secure_mode(void) { return 0; };
@@ -316,87 +294,17 @@ int run_test()
 	return 0;
 }
 
-static int run_edk2_tpmnv_test(void)
-{
-	int size, rc;
-	char *tmp;
-
-	size = secvar_tpmnv_size(TPMNV_ID_EDK2_PK);
-	ASSERT(size > 0);
-	ASSERT(size < 1024);
-	tmp = malloc(size);
-	rc = secvar_tpmnv_read(TPMNV_ID_EDK2_PK, tmp, size, 0);
-	ASSERT(OPAL_SUCCESS == rc);
-	// memcmp here?
-
-	free(tmp);
-	tmp = NULL; // Going to reuse this pointer later...
-
-	clear_bank_list(&variable_bank);
-	ASSERT(0 == list_length(&variable_bank));
-
-	rc = edk2_p9_load_pk();
-	ASSERT(OPAL_SUCCESS == rc);
-	ASSERT(1 == list_length(&variable_bank));
-
-	// Now lets double check that write is working...
-	memset(secboot_buffer, 0, ARBITRARY_TPMNV_SIZE);
-
-	rc = edk2_p9_write_pk();
-	ASSERT(OPAL_SUCCESS == rc);
-
-	for (tmp = secboot_buffer;
-		tmp <= secboot_buffer + ARBITRARY_TPMNV_SIZE;
-		tmp++)
-		if (*tmp != '\0')
-			return 0; // Something was written
-
-	// Buffer was still empty
-	return 1;
-}
-
 int main(void)
 {
 	int rc;
-
-	tpm_fake_nv = 1;
-	tpm_fake_nv_offset = 0;
 
 	list_head_init(&variable_bank);
 	list_head_init(&update_bank);
 
 	secvar_storage.max_var_size = 4096;
 
-	// Run as a generic platform using whatever storage
-	proc_gen = 0;
 	rc = run_test();
-	if (rc)
-		goto out_bank;
 
-	clear_bank_list(&variable_bank);
-	clear_bank_list(&update_bank);
-	ASSERT(0 == list_length(&variable_bank));
-	ASSERT(0 == list_length(&update_bank));
-	printf("PASSED FIRST TEST\n");
-
-	// Run as "p9" and use the TPM for pk
-	// TODO: Change to TSS stubs when this matters
-	platform.secboot_read = secboot_read;
-	platform.secboot_write = secboot_write;
-	secboot_buffer = zalloc(ARBITRARY_TPMNV_SIZE);
-
-	proc_gen = proc_gen_p9;
-	rc = run_test();
-	if (rc)
-		goto out;
-
-	printf("Run TPMNV tests\n");
-	// Check that PK was actually written to "TPM" and load it
-	rc = run_edk2_tpmnv_test();
-
-out:
-	free(secboot_buffer);
-out_bank:
 	clear_bank_list(&variable_bank);
 	clear_bank_list(&update_bank);
 
