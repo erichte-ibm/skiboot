@@ -34,8 +34,8 @@ size_t tpm_nv_size = 0;
 
 /* Values set by a platform to enable TPMNV simulation mode
  * NOT INTENDED FOR PRODUCTION USE */
-int tpm_fake_nv = 0;			// Use fake NV mode using pnor
-uint64_t tpm_fake_nv_offset = 0;	// Offset into SECBOOT pnor to use
+int tpm_fake_nv = 0;			/* Use fake NV mode using pnor */
+uint64_t tpm_fake_nv_offset = 0;	/* Offset into SECBOOT pnor to use */
 uint64_t tpm_fake_nv_max_size = 0;
 
 static int TSS_Fake_Read(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off)
@@ -105,7 +105,10 @@ static int secvar_tpmnv_format(void)
 	return tpmnv_ops->tss_nv_write(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
 }
 
-
+/* Initialize the secvar TPM NV space
+ *  Define the NV index if it hasn't been already (first boot)
+ *  Read the NV index data into an in-memory cache
+ */
 static int secvar_tpmnv_init(void)
 {
 	int rc;
@@ -193,7 +196,12 @@ out:
 	return tmp;
 }
 
-
+/* Allocate, or locate a chunk of TPM NV space.
+ *  Space acts as a very simple key-value store,
+ *  if the requested key (id) doesn't exist, ensure there is space
+ *  and reserve the id.
+ *  If the id does exist, return.
+ */
 int secvar_tpmnv_alloc(uint32_t id, int32_t size)
 {
 	struct tpm_nv_id *tmp;
@@ -236,6 +244,10 @@ allocate:
 }
 
 
+/* Retrieve a chunk of data from the TPM NV space.
+ *  Scans through the buffer for the requested id, and copies the data
+ *  Operates only on the in-memory buffer cache, does not execute a TPM command
+ */
 int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 {
 	struct tpm_nv_id *var;
@@ -258,7 +270,9 @@ int secvar_tpmnv_read(uint32_t id, void *buf, size_t size, size_t off)
 	return OPAL_SUCCESS;
 }
 
-
+/* Write a buffer of data to the given id, and flushes the buffer to
+ *  actual TPM NV storage.
+ */
 int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 {
 	struct tpm_nv_id *var;
@@ -281,6 +295,7 @@ int secvar_tpmnv_write(uint32_t id, void *buf, size_t size, size_t off)
 	return tpmnv_ops->tss_nv_write(TPM_SECVAR_NV_INDEX, tpm_image, tpm_nv_size, 0);
 }
 
+/* Retrieves the size allocated for a specific id */
 uint32_t secvar_tpmnv_size(uint32_t id)
 {
 	struct tpm_nv_id *var;
