@@ -18,7 +18,6 @@
 #include <occ.h>
 #include <i2c.h>
 #include <secvar.h>
-#include "libstb/secvar/secvar_tpmnv.h"
 #include "libstb/secvar/storage/secboot_tpm.h"
 
 #include "astbmc.h"
