@@ -16,7 +16,6 @@
 #include "opal-api.h"
 #include "../secvar.h"
 #include "../secvar_devtree.h"
-#include "../secvar_tpmnv.h"
 #include <mbedtls/error.h>
 
 #define TPMNV_ID_EDK2_PK	0x4532504b // E2PK
@@ -69,94 +68,6 @@ static void get_key_authority(const char *ret[3], const char *key)
 		ret[i++] = "PK";
 	}
 	ret[i] = NULL;
-}
-
-/*
- * PK needs to be stored in the TPMNV space if on p9
- * We store it using the form <u64:esl size><esl data>, the
- * extra secvar headers are unnecessary
- */
-static int edk2_p9_load_pk(void)
-{
-	struct secvar_node *pkvar;
-	uint64_t size;
-	int rc;
-
-	// Ensure it exists
-	rc = secvar_tpmnv_alloc(TPMNV_ID_EDK2_PK, -1);
-
-	// Peek to get the size
-	rc = secvar_tpmnv_read(TPMNV_ID_EDK2_PK, &size, sizeof(size), 0);
-	if (rc == OPAL_EMPTY)
-		return 0;
-	else if (rc)
-		return -1;
-
-	if (size > secvar_storage.max_var_size)
-		return OPAL_RESOURCE;
-
-	pkvar = alloc_secvar(size);
-	memcpy(pkvar->var->key, "PK", 3);
-	pkvar->var->key_len = 3;
-	pkvar->var->data_size = size;
-	pkvar->flags |= SECVAR_FLAG_VOLATILE;
-
-	rc = secvar_tpmnv_read(TPMNV_ID_EDK2_PK, pkvar->var->data, pkvar->var->data_size, sizeof(pkvar->var->data_size));
-	if (rc)
-		return rc;
-
-	list_add_tail(&variable_bank, &pkvar->link);
-
-	return OPAL_SUCCESS;
-}
-
-/*
- * Writes the PK to the TPM.
- */
-static int edk2_p9_write_pk(void)
-{
-	char *tmp;
-	int32_t tmpsize;
-	struct secvar_node *pkvar;
-	int rc;
-
-	pkvar = find_secvar("PK", 3, &variable_bank);
-
-	// Should not happen
-	if (!pkvar)
-		return OPAL_INTERNAL_ERROR;
-
-	// Reset the pk flag to volatile on p9
-	pkvar->flags |= SECVAR_FLAG_VOLATILE;
-
-	tmpsize = secvar_tpmnv_size(TPMNV_ID_EDK2_PK);
-	if (tmpsize < 0) {
-		prlog(PR_ERR, "TPMNV space for PK was not allocated properly\n");
-		return OPAL_RESOURCE;
-	}
-	if (tmpsize < pkvar->var->data_size + sizeof(pkvar->var->data_size)) {
-		prlog(PR_ERR, "TPMNV PK space is insufficient, %d < %llu\n", tmpsize,
-			// Cast needed because x86 compiler complains building the test
-			(long long unsigned) pkvar->var->data_size + sizeof(pkvar->var->data_size));
-		return OPAL_RESOURCE;
-	}
-
-	tmp = zalloc(tmpsize);
-	if (!tmp)
-		return OPAL_NO_MEM;
-
-	memcpy(tmp, &pkvar->var->data_size, sizeof(pkvar->var->data_size));
-	memcpy(tmp + sizeof(pkvar->var->data_size),
-		pkvar->var->data,
-		pkvar->var->data_size);
-
-	tmpsize = pkvar->var->data_size + sizeof(pkvar->var->data_size);
-
-	rc = secvar_tpmnv_write(TPMNV_ID_EDK2_PK, tmp, tmpsize, 0);
-
-	free(tmp);
-
-	return rc;
 }
 
 /*
@@ -324,16 +235,6 @@ static int edk2_compat_pre_process(void)
 	struct secvar_node *dbxvar;
 	struct secvar_node *tsvar;
 
-	// If we are on p9, we need to store the PK in write-lockable
-	//  TPMNV space, as we determine our secure mode based on if this
-	//  variable exists.
-	// NOTE: Activation of this behavior is subject to change in a later
-	//  patch version, ideally the platform should be able to configure
-	//  whether it wants this extra protection, or to instead store
-	//  everything via the storage driver.
-	if (proc_gen == proc_gen_p9)
-		edk2_p9_load_pk();
-
 	pkvar = find_secvar("PK", 3, &variable_bank);
 	if (!pkvar) {
 		pkvar = alloc_secvar(0);
@@ -444,6 +345,10 @@ static int add_to_variable_bank(struct secvar *secvar, void *data, uint64_t dsiz
 		memcpy(node->var->data, data, dsize);
 	node->var->data_size = dsize;
 	node->flags &= ~SECVAR_FLAG_VOLATILE; // Clear the volatile bit when updated
+
+	if (!strncmp(secvar->key, "PK", 3))
+		node->flags |= SECVAR_FLAG_PRIORITY;
+
 
 	return 0;
 }
@@ -706,7 +611,6 @@ static int edk2_compat_process(void)
 	struct secvar_node *anode = NULL;
 	struct secvar_node *node = NULL;
 	int rc = 0;
-	int pk_updated = 0;
 	int i;
 
 	//setup_mode = is_setup_mode();
@@ -715,9 +619,7 @@ static int edk2_compat_process(void)
 	if (dt_find_property(NULL, "physical-presence"))
 	{
 		clear_all_keys();
-		pk_updated = 1;
 		setup_mode = true;
-		goto updatepk;
 	}
 
 	/* Loop through each command in the update bank.
@@ -805,21 +707,11 @@ static int edk2_compat_process(void)
 		/* If the PK is updated, update the secure boot state of the
 		 * system at the end of processing */
 		if (key_equals(node->var->key, "PK")) {
-			pk_updated = 1;
 			if(new_data_size == 0)
 				setup_mode = true;
 			else
 				setup_mode = false;
 			printf("setup mode is %d\n", setup_mode);
-		}
-	}
-
-updatepk:
-	if (pk_updated) {
-		// Store the updated pk in TPMNV on p9
-		if (proc_gen == proc_gen_p9) {
-			rc = edk2_p9_write_pk();
-			prlog(PR_INFO, "edk2_p9_write rc=%d\n", rc);
 		}
 	}
 
