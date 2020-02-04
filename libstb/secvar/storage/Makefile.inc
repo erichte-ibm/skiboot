@@ -5,7 +5,8 @@ SECVAR_STORAGE_DIR = $(SRC)/libstb/secvar/storage
 
 SUBDIRS += $(SECVAR_STORAGE_DIR)
 
-SECVAR_STORAGE_SRCS = secboot_tpm.c
+SECVAR_STORAGE_SRCS = secboot_tpm.c tpmnv_ops.c
+#SECVAR_STORAGE_SRCS = secboot_tpm.c fakenv_ops.c
 SECVAR_STORAGE_OBJS = $(SECVAR_STORAGE_SRCS:%.c=%.o)
 SECVAR_STORAGE = $(SECVAR_STORAGE_DIR)/built-in.a
 

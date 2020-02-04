@@ -9,22 +9,22 @@
 #include <opal.h>
 #include <mbedtls/sha256.h>
 #include "../secvar.h"
-#include "../secvar_tpmnv.h"
 #include "secboot_tpm.h"
+#include <tssskiboot.h>
+#include <ibmtss/TPM_Types.h>
 
 //#define CYCLE_BIT(b) (((((b-1)%SECBOOT_VARIABLE_BANK_NUM)+1)%SECBOOT_VARIABLE_BANK_NUM)+1)
 #define CYCLE_BIT(b) (b^0x1)
-
-#define TPMNV_ID_ACTIVE_BIT	0x53414242 // SABB
-#define TPMNV_ID_HASH_BANK_0	0x53484230 // SHB0
-#define TPMNV_ID_HASH_BANK_1	0x53484231 // SHB1
-
-#define GET_HASH_BANK_ID(bit) ((bit)?TPMNV_ID_HASH_BANK_1:TPMNV_ID_HASH_BANK_0)
 
 // Because mbedtls doesn't define this?
 #define SHA256_DIGEST_LENGTH	32
 
 struct secboot *secboot_image;
+struct tpmnv *tpmnv_image;
+
+extern struct tpmnv_ops_s tpmnv_ops;
+
+const size_t tpmnv_size = 1024;
 
 static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 {
@@ -37,19 +37,25 @@ static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 
 static int secboot_format(void)
 {
-	char bank_hash[SHA256_DIGEST_LENGTH];
+	int rc;
 
 	if (!platform.secboot_write)
 		return OPAL_UNSUPPORTED;
 
 	memset(secboot_image, 0x00, sizeof(struct secboot));
+	memset(tpmnv_image, 0x00, tpmnv_size);
+
+	tpmnv_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
+	tpmnv_image->header.magic_number = SECBOOT_VERSION;
 
 	secboot_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
 	secboot_image->header.version = SECBOOT_VERSION;
 
 	// Write the empty hash to the tpm so loads work in the future
-	calc_bank_hash(bank_hash, secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
-	secvar_tpmnv_write(TPMNV_ID_HASH_BANK_0, bank_hash, SHA256_DIGEST_LENGTH, 0);
+	calc_bank_hash(tpmnv_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image, tpmnv_size, 0);
+	if (rc)
+		return rc;
 
 	return platform.secboot_write(0, secboot_image, sizeof(struct secboot));
 }
@@ -59,6 +65,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 {
 	struct secvar_node *node;
 	char *tmp = target;
+	int complete_priority = 0;
 
 	if (!bank)
 		return OPAL_INTERNAL_ERROR;
@@ -72,6 +79,26 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 		// Bail early if we are out of storage space
 		if ((target - tmp) + sizeof(struct secvar) + node->var->data_size > target_size) {
 			return OPAL_EMPTY;
+		}
+
+		// We only have space for one priority variable in TPMNV space,
+		//  so accept the first one, and bail if we attempt to continue looping.
+		if (complete_priority) {
+			prlog(PR_ERR, "This driver only supports one priority variable, and more than one was given.");
+			return OPAL_INTERNAL_ERROR;
+		}
+
+		if (flags == SECVAR_FLAG_PRIORITY) {
+			memcpy(target, &node->var->key_len, sizeof(node->var->key_len));
+			target += sizeof(node->var->key_len);
+			memcpy(target, &node->var->data_size, sizeof(node->var->data_size));
+			target += sizeof(node->var->data_size);
+			memcpy(target, node->var->key, node->var->key_len);
+			target += node->var->key_len;
+			memcpy(target, node->var->data, node->var->data_size);
+
+			complete_priority = 1;
+			continue;
 		}
 		
 		memcpy(target, node->var, sizeof(struct secvar) + node->var->data_size);
@@ -118,21 +145,25 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 {
 	int rc;
 	uint64_t bit;
-	char bank_hash[SHA256_DIGEST_LENGTH];
 
 	switch(section) {
 		case SECVAR_VARIABLE_BANK:
-			// Get the current bit and flip it
-			secvar_tpmnv_read(TPMNV_ID_ACTIVE_BIT, &bit, sizeof(bit), 0);
-			bit = CYCLE_BIT(bit);
+			bit = CYCLE_BIT(tpmnv_image->active_bit);
+			// TODO: Write better offset calculation
+			rc = secboot_serialize_bank(bank, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), SECVAR_FLAG_PRIORITY);
+			if (rc)
+				break;
+
+			rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), offsetof(struct tpmnv, priority_var));
 
 			// Calculate the bank hash, and write to TPM NV
 			rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
 			if (rc)
 				break;
 
-			calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
-			rc = secvar_tpmnv_write(GET_HASH_BANK_ID(bit), bank_hash, SHA256_DIGEST_LENGTH, 0);
+			calc_bank_hash(tpmnv_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+			// TODO: write an auto-offset calculator
+			rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, ((char *) &tpmnv_image->bank_hash[bit] - (char *) tpmnv_image));
 			if (rc)
 				break;
 
@@ -142,7 +173,8 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 				break;
 
 			// Flip the bit, and write to TPM NV
-			rc = secvar_tpmnv_write(TPMNV_ID_ACTIVE_BIT, &bit, sizeof(bit), 0);
+			tpmnv_image->active_bit = bit;
+			rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, &tpmnv_image->active_bit, sizeof(tpmnv_image->active_bit), offsetof(struct tpmnv, active_bit));
 			break;
 		case SECVAR_UPDATE_BANK:
 			memset(secboot_image->update, 0, SECBOOT_UPDATE_BANK_SIZE);
@@ -163,15 +195,25 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 static int secboot_tpm_load_variable_bank(struct list_head *bank)
 {
 	char bank_hash[SHA256_DIGEST_LENGTH];
-	char tpm_bank_hash[SHA256_DIGEST_LENGTH];
-	uint64_t bit;
-
-	secvar_tpmnv_read(TPMNV_ID_ACTIVE_BIT, &bit, sizeof(bit), 0);
-	secvar_tpmnv_read(GET_HASH_BANK_ID(bit), tpm_bank_hash, SHA256_DIGEST_LENGTH, 0);
+	uint64_t bit = tpmnv_image->active_bit;
+	struct secvar *tmp;
+	struct secvar_node *node;
 
 	calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
-	if (memcmp(bank_hash, tpm_bank_hash, SHA256_DIGEST_LENGTH))
+	if (memcmp(bank_hash, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH))
 		return OPAL_PERMISSION; // Tampered pnor space detected, abandon ship
+
+	// Temporary cast to check sizes
+	tmp = (struct secvar *) tpmnv_image->priority_var;
+	// Check if we have a priority variable to load
+	if (tmp->key_len != 0) {
+		node = alloc_secvar(tmp->data_size);
+		node->var->key_len = tmp->key_len;
+		node->var->data_size = tmp->data_size;
+		memcpy(node->var->key, tpmnv_image->priority_var + offsetof(struct secvar, key), tmp->key_len);
+		memcpy(node->var->data, tpmnv_image->priority_var + offsetof(struct secvar, key) + tmp->key_len, tmp->data_size);
+		list_add_tail(bank, &node->link);
+	}
 
 	return secboot_load_from_pnor(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
 }
@@ -196,6 +238,7 @@ static int secboot_tpm_store_init(void)
 {
 	int rc;
 	unsigned secboot_size;
+	int tpm_first_init = 0;
 
 	// Already initialized
 	if (secboot_image)
@@ -206,12 +249,27 @@ static int secboot_tpm_store_init(void)
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
-	rc = secvar_tpmnv_alloc(TPMNV_ID_ACTIVE_BIT, sizeof(uint64_t));
-	rc |= secvar_tpmnv_alloc(TPMNV_ID_HASH_BANK_0, SHA256_DIGEST_LENGTH);
-	rc |= secvar_tpmnv_alloc(TPMNV_ID_HASH_BANK_1, SHA256_DIGEST_LENGTH);
-	if (rc) {
-		prlog(PR_ERR, "unable to alloc or find the tpmnv space, rc = %d\n", rc);
+	tpmnv_image = zalloc(tpmnv_size);
+	if (!tpmnv_image)
+		return OPAL_NO_MEM;
+
+	// TODO: probably shouldn't put all tpmnv formatting in secboot_format()
+	// Read from the TPM NV index, define it if it doesn't exist
+	//   Defining the index invokes a full reformat
+	rc = tpmnv_ops.read(SECBOOT_TPMNV_INDEX, tpmnv_image, tpmnv_size, 0);
+	if (rc == TPM_RC_NV_UNINITIALIZED) {
+		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_INDEX, 'p', 'p', tpmnv_size);
+		if (rc)
+			return rc;
+		tpm_first_init = 1;
+	}
+	else if (rc) {
 		return rc;
+	}
+
+	/* Trigger a reformat if for some reason the NV index was cleared */
+	if (tpmnv_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
+		tpm_first_init = 1;
 	}
 
 	rc = platform.secboot_info(&secboot_size);
@@ -228,6 +286,7 @@ static int secboot_tpm_store_init(void)
 	secboot_image = memalign(0x1000, sizeof(struct secboot));
 	if (!secboot_image) {
 		prlog(PR_ERR, "Failed to allocate space for the secboot image\n");
+		free(tpmnv_image);
 		return OPAL_NO_MEM;
 	}
 
@@ -238,8 +297,8 @@ static int secboot_tpm_store_init(void)
 		goto out_free;
 	}
 
-	if ((secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER)
-	     || tpm_first_init ) {
+	if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER
+		|| tpm_first_init) {
 		prlog(PR_INFO, "Formatting secboot partition...\n");
 		rc = secboot_format();
 		if (rc) {
