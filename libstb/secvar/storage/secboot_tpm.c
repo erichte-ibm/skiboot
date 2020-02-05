@@ -185,7 +185,7 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 
 	calc_bank_hash(tpmnv_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
 	// TODO: write an auto-offset calculator
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, ((char *) &tpmnv_image->bank_hash[bit] - (char *) tpmnv_image));
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, offsetof(struct tpmnv, bank_hash[bit]));
 	if (rc)
 		goto out;
 
