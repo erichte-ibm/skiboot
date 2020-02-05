@@ -172,7 +172,6 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 	uint64_t bit;
 
 	bit = CYCLE_BIT(tpmnv_image->active_bit);
-	// TODO: Write better offset calculation
 	rc = secboot_serialize_bank(bank, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), SECVAR_FLAG_PRIORITY);
 	if (rc)
 		goto out;
@@ -185,7 +184,6 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 		goto out;
 
 	calc_bank_hash(tpmnv_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
-	// TODO: write an auto-offset calculator
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, offsetof(struct tpmnv, bank_hash[bit]));
 	if (rc)
 		goto out;
