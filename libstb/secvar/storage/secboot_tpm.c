@@ -127,6 +127,16 @@ static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t m
 		if (hdr->key_len == 0) {
 			break;
 		}
+		else if (hdr->key_len > SECVAR_MAX_VAR_LEN) {
+			prlog(PR_ERR, "Attempted to load a key larger than max, len = %lld\n", hdr->key_len);
+			return OPAL_INTERNAL_ERROR;
+		}
+
+		if (hdr->data_size > SECBOOT_TPM_MAX_VAR_SIZE) {
+			prlog(PR_ERR, "Attempted to load a data payload larger than max, "
+				      "size = %lld\n", hdr->data_size);
+			return OPAL_INTERNAL_ERROR;
+		}
 
 		tmp = alloc_secvar(hdr->data_size);
 		if (!tmp) {
