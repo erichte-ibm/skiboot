@@ -346,6 +346,7 @@ static int secboot_tpm_store_init(void)
 		goto error;
 	}
 
+	/* TPM needs to be formatted, also reformat SECBOOT with it */
 	if (tpm_first_init) {
 		prlog(PR_INFO, "Initializing and formatting TPMNV space and SECBOOT partition\n");
 		rc = tpmnv_format();
