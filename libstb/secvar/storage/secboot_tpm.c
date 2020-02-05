@@ -20,8 +20,8 @@
 
 #define SECBOOT_TPM_MAX_VAR_SIZE	8192
 
-struct secboot *secboot_image;
-struct tpmnv *tpmnv_image;
+struct secboot *secboot_image = NULL;
+struct tpmnv *tpmnv_image = NULL;
 
 extern struct tpmnv_ops_s tpmnv_ops;
 
@@ -36,6 +36,19 @@ static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 	mbedtls_sha256_finish_ret(&ctx, target_hash);
 }
 
+/* Reformat the TPMNV space */
+static int tpmnv_format(void)
+{
+	memset(tpmnv_image, 0x00, tpmnv_size);
+
+	tpmnv_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
+	tpmnv_image->header.magic_number = SECBOOT_VERSION;
+
+	/* Counts as first write to the TPM NV, as required by fresh NV indices */
+	return tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image, tpmnv_size, 0);
+}
+
+/* Reformat the secboot PNOR space */
 static int secboot_format(void)
 {
 	int rc;
@@ -44,18 +57,14 @@ static int secboot_format(void)
 		return OPAL_UNSUPPORTED;
 
 	memset(secboot_image, 0x00, sizeof(struct secboot));
-	memset(tpmnv_image, 0x00, tpmnv_size);
-
-	tpmnv_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
-	tpmnv_image->header.magic_number = SECBOOT_VERSION;
 
 	secboot_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
 	secboot_image->header.version = SECBOOT_VERSION;
 
 	/* Write the hash of the empty bank to the tpm so loads work in the future */
-	/* Also counts as the first write needed for a freshly-defined NV index */
 	calc_bank_hash(tpmnv_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image, tpmnv_size, 0);
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv, bank_hash[0]));
+
 	if (rc)
 		return rc;
 
@@ -103,7 +112,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 			complete_priority = 1;
 			continue;
 		}
-		
+
 		memcpy(target, node->var, sizeof(struct secvar) + node->var->data_size);
 
 		target += sizeof(struct secvar) + node->var->data_size;
@@ -297,7 +306,7 @@ static int secboot_tpm_store_init(void)
 	if (rc == TPM_RC_NV_UNINITIALIZED) {
 		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_INDEX, 'p', 'p', tpmnv_size);
 		if (rc)
-			return rc;
+
 		/* Defining the index invokes a full reformat */
 		tpm_first_init = 1;
 	}
@@ -313,46 +322,56 @@ static int secboot_tpm_store_init(void)
 	rc = platform.secboot_info(&secboot_size);
 	if (rc) {
 		prlog(PR_ERR, "error %d retrieving keystore info\n", rc);
-		return rc;
+		goto error;
 	}
 	if (sizeof(struct secboot) > secboot_size) {
 		prlog(PR_ERR, "secboot partition %d KB too small. min=%ld\n",
 		      secboot_size >> 10, sizeof(struct secboot));
-		return OPAL_RESOURCE;
+		rc = OPAL_RESOURCE;
+		goto error;
 	}
 
 	secboot_image = memalign(0x1000, sizeof(struct secboot));
 	if (!secboot_image) {
 		prlog(PR_ERR, "Failed to allocate space for the secboot image\n");
 		free(tpmnv_image);
-		return OPAL_NO_MEM;
+		rc = OPAL_NO_MEM;
+		goto error;
 	}
 
 	/* Read in the PNOR data, bank hash is checked on call to .load_bank() */
 	rc = platform.secboot_read(secboot_image, 0, sizeof(struct secboot));
 	if (rc) {
 		prlog(PR_ERR, "failed to read the secboot partition, rc=%d\n", rc);
-		goto out_free;
+		goto error;
 	}
 
-	/* Determine if we need to reformat */
-	if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER
-		|| tpm_first_init) {
+	if (tpm_first_init) {
+		rc = tpmnv_format();
+		if (rc)
+			goto error;
+
+		rc = secboot_format();
+		if (rc)
+			goto error;
+	}
+	/* Determine if we need to reformat just secboot*/
+	else if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
 		prlog(PR_INFO, "Formatting secboot partition...\n");
 		rc = secboot_format();
 		if (rc) {
 			prlog(PR_ERR, "Failed to format secboot!\n");
-			goto out_free;
+			goto error;
 		}
 	}
 
 	return OPAL_SUCCESS;
 
-out_free:
-	if (secboot_image) {
-		free(secboot_image);
-		secboot_image = NULL;
-	}
+error:
+	free(secboot_image);
+	secboot_image = NULL;
+	free(tpmnv_image);
+	tpmnv_image = NULL;
 
 	return rc;
 }
