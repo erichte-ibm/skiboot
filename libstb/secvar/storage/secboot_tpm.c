@@ -27,6 +27,7 @@ extern struct tpmnv_ops_s tpmnv_ops;
 
 const size_t tpmnv_size = 1024;
 
+/* Calculate a SHA256 hash over the supplied buffer */
 static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 {
 	mbedtls_sha256_context ctx;
@@ -121,7 +122,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 	return OPAL_SUCCESS;
 }
 
-
+/* Loads in a flattened list of variables from a buffer into a linked list */
 static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t max_size)
 {
 	char *src;
