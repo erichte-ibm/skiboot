@@ -128,14 +128,14 @@ static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t m
 		if (hdr->key_len == 0) {
 			break;
 		}
-		else if (hdr->key_len > SECVAR_MAX_VAR_LEN) {
-			prlog(PR_ERR, "Attempted to load a key larger than max, len = %lld\n", hdr->key_len);
+		else if (hdr->key_len > SECVAR_MAX_KEY_LEN) {
+			prlog(PR_ERR, "Attempted to load a key larger than max, len = %llu\n", hdr->key_len);
 			return OPAL_INTERNAL_ERROR;
 		}
 
 		if (hdr->data_size > SECBOOT_TPM_MAX_VAR_SIZE) {
 			prlog(PR_ERR, "Attempted to load a data payload larger than max, "
-				      "size = %lld\n", hdr->data_size);
+				      "size = %llu\n", hdr->data_size);
 			return OPAL_INTERNAL_ERROR;
 		}
 
@@ -236,7 +236,7 @@ static int secboot_tpm_load_variable_bank(struct list_head *bank)
 	if ((tmp->key_len > SECVAR_MAX_KEY_LEN)
 	     || (tmp->data_size > SECBOOT_TPM_MAX_VAR_SIZE)) {
 		prlog(PR_ERR, "TPM NV Priority variable has impossible sizes, probably internal bug. "
-			      "len = %lld, size = %lld\n", tmp->key_len, tmp->data_size);
+			      "len = %llu, size = %llu\n", tmp->key_len, tmp->data_size);
 		return OPAL_INTERNAL_ERROR;
 	}
 	/* Check if we have a priority variable to load */
