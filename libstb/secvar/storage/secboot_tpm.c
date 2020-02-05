@@ -18,6 +18,8 @@
 // Because mbedtls doesn't define this?
 #define SHA256_DIGEST_LENGTH	32
 
+#define SECBOOT_TPM_MAX_VAR_SIZE	8192
+
 struct secboot *secboot_image;
 struct tpmnv *tpmnv_image;
 
@@ -218,14 +220,27 @@ static int secboot_tpm_load_variable_bank(struct list_head *bank)
 
 	/* Temporary cast to check sizes */
 	tmp = (struct secvar *) tpmnv_image->priority_var;
+	/* Sanity check our potential priority variable */
+	/* Should be zeroes if nonexistent */
+	if ((tmp->key_len > SECVAR_MAX_KEY_LEN)
+	     || (tmp->data_size > SECBOOT_TPM_MAX_VAR_SIZE)) {
+		prlog(PR_ERR, "TPM NV Priority variable has impossible sizes, probably internal bug. "
+			      "len = %lld, size = %lld\n", tmp->key_len, tmp->data_size);
+		return OPAL_INTERNAL_ERROR;
+	}
 	/* Check if we have a priority variable to load */
 	if (tmp->key_len != 0) {
 		node = alloc_secvar(tmp->data_size);
+		if (!node)
+			return OPAL_NO_MEM;
+
 		node->var->key_len = tmp->key_len;
 		node->var->data_size = tmp->data_size;
+		node->flags |= SECVAR_FLAG_PRIORITY;
+
 		memcpy(node->var->key, tpmnv_image->priority_var + offsetof(struct secvar, key), tmp->key_len);
 		memcpy(node->var->data, tpmnv_image->priority_var + offsetof(struct secvar, key) + tmp->key_len, tmp->data_size);
-		node->flags |= SECVAR_FLAG_PRIORITY;
+
 		list_add_tail(bank, &node->link);
 	}
 
@@ -342,5 +357,5 @@ struct secvar_storage_driver secboot_tpm_driver = {
 	.write_bank = secboot_tpm_write_bank,
 	.store_init = secboot_tpm_store_init,
 	.lock = secboot_tpm_lock,
-	.max_var_size = 8192,
+	.max_var_size = SECBOOT_TPM_MAX_VAR_SIZE,
 };
