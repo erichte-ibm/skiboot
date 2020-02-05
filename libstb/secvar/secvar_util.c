@@ -43,6 +43,31 @@ struct secvar_node *alloc_secvar(uint64_t size)
 	return ret;
 }
 
+struct secvar_node *new_secvar(char *key, uint64_t key_len, char *data, uint64_t data_size)
+{
+	struct secvar_node *ret;
+
+	if (!key)
+		return OPAL_PARAMETER;
+	if ((!key_len) || (key_len > SECVAR_MAX_KEY_LEN))
+		return OPAL_PARAMETER;
+	if ((!data) && (data_size))
+		return OPAL_PARAMETER;
+
+	ret = alloc_secvar(data_size);
+	if (!ret)
+		return OPAL_NO_MEM;
+
+	ret->var->key_len = key_len;
+	ret->var->data_size = data_size;
+	memcpy(ret->var->key, key, key_len);
+
+	if (data)
+		memcpy(ret->var->data, data, data_size);
+
+	return ret;
+}
+
 int realloc_secvar(struct secvar_node *node, uint64_t size)
 {
 	void *tmp;
