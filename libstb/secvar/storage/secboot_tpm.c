@@ -90,6 +90,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 			return OPAL_INTERNAL_ERROR;
 		}
 
+		/* Priority variable is packs the key tightly to save space */
 		if (flags == SECVAR_FLAG_PRIORITY) {
 			memcpy(target, &node->var->key_len, sizeof(node->var->key_len));
 			target += sizeof(node->var->key_len);
