@@ -347,6 +347,7 @@ static int secboot_tpm_store_init(void)
 	}
 
 	if (tpm_first_init) {
+		prlog(PR_INFO, "Initializing and formatting TPMNV space and SECBOOT partition\n");
 		rc = tpmnv_format();
 		if (rc)
 			goto error;
@@ -357,7 +358,7 @@ static int secboot_tpm_store_init(void)
 	}
 	/* Determine if we need to reformat just secboot*/
 	else if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
-		prlog(PR_INFO, "Formatting secboot partition...\n");
+		prlog(PR_INFO, "SECBOOT partiton was empty or altered, formatting\n");
 		rc = secboot_format();
 		if (rc) {
 			prlog(PR_ERR, "Failed to format secboot!\n");
