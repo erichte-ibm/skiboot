@@ -48,15 +48,15 @@ struct secvar_node *new_secvar(char *key, uint64_t key_len, char *data, uint64_t
 	struct secvar_node *ret;
 
 	if (!key)
-		return OPAL_PARAMETER;
+		return NULL;
 	if ((!key_len) || (key_len > SECVAR_MAX_KEY_LEN))
-		return OPAL_PARAMETER;
+		return NULL;
 	if ((!data) && (data_size))
-		return OPAL_PARAMETER;
+		return NULL;
 
 	ret = alloc_secvar(data_size);
 	if (!ret)
-		return OPAL_NO_MEM;
+		return NULL;
 
 	ret->var->key_len = key_len;
 	ret->var->data_size = data_size;
