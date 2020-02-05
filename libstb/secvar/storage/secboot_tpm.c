@@ -141,40 +141,51 @@ static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t m
 }
 
 
-static int secboot_tpm_write_bank(struct list_head *bank, int section)
+/* Helper for the variable-bank specific writing logic */
+static int secboot_tpm_write_variable_bank(struct list_head *bank)
 {
 	int rc;
 	uint64_t bit;
 
+	bit = CYCLE_BIT(tpmnv_image->active_bit);
+	// TODO: Write better offset calculation
+	rc = secboot_serialize_bank(bank, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), SECVAR_FLAG_PRIORITY);
+	if (rc)
+		goto out;
+
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), offsetof(struct tpmnv, priority_var));
+
+	// Calculate the bank hash, and write to TPM NV
+	rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
+	if (rc)
+		goto out;
+
+	calc_bank_hash(tpmnv_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	// TODO: write an auto-offset calculator
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, ((char *) &tpmnv_image->bank_hash[bit] - (char *) tpmnv_image));
+	if (rc)
+		goto out;
+
+	// Write new variable bank to pnor
+	rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
+	if (rc)
+		goto out;
+
+	// Flip the bit, and write to TPM NV
+	tpmnv_image->active_bit = bit;
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, &tpmnv_image->active_bit, sizeof(tpmnv_image->active_bit), offsetof(struct tpmnv, active_bit));
+out:
+
+	return rc;
+}
+
+static int secboot_tpm_write_bank(struct list_head *bank, int section)
+{
+	int rc;
+
 	switch(section) {
 		case SECVAR_VARIABLE_BANK:
-			bit = CYCLE_BIT(tpmnv_image->active_bit);
-			// TODO: Write better offset calculation
-			rc = secboot_serialize_bank(bank, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), SECVAR_FLAG_PRIORITY);
-			if (rc)
-				break;
-
-			rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), offsetof(struct tpmnv, priority_var));
-
-			// Calculate the bank hash, and write to TPM NV
-			rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
-			if (rc)
-				break;
-
-			calc_bank_hash(tpmnv_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
-			// TODO: write an auto-offset calculator
-			rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, ((char *) &tpmnv_image->bank_hash[bit] - (char *) tpmnv_image));
-			if (rc)
-				break;
-
-			// Write new variable bank to pnor
-			rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
-			if (rc)
-				break;
-
-			// Flip the bit, and write to TPM NV
-			tpmnv_image->active_bit = bit;
-			rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, &tpmnv_image->active_bit, sizeof(tpmnv_image->active_bit), offsetof(struct tpmnv, active_bit));
+			rc = secboot_tpm_write_variable_bank(bank);
 			break;
 		case SECVAR_UPDATE_BANK:
 			memset(secboot_image->update, 0, SECBOOT_UPDATE_BANK_SIZE);
@@ -212,6 +223,7 @@ static int secboot_tpm_load_variable_bank(struct list_head *bank)
 		node->var->data_size = tmp->data_size;
 		memcpy(node->var->key, tpmnv_image->priority_var + offsetof(struct secvar, key), tmp->key_len);
 		memcpy(node->var->data, tpmnv_image->priority_var + offsetof(struct secvar, key) + tmp->key_len, tmp->data_size);
+		node->flags |= SECVAR_FLAG_PRIORITY;
 		list_add_tail(bank, &node->link);
 	}
 
