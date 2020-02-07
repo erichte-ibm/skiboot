@@ -33,15 +33,6 @@
 
 const char *secvar_test_name = "edk2-compat";
 
-// Stub out dt_find_property, as we don't have a test (yet) for physical presence
-const struct dt_property *dt_find_property(const struct dt_node *node,
-                                           const char *name)
-{
-	(void) node;
-	(void) name;
-	return NULL;
-}
-
 int secvar_set_secure_mode(void) { return 0; };
 
 int run_test()
