@@ -21,11 +21,12 @@
 #define SECBOOT_TPM_MAX_VAR_SIZE	8192
 
 struct secboot *secboot_image = NULL;
-struct tpmnv *tpmnv_image = NULL;
+struct tpmnv_vars *tpmnv_vars_image = NULL;
+struct tpmnv_control *tpmnv_control_image = NULL;
 
 extern struct tpmnv_ops_s tpmnv_ops;
 
-const size_t tpmnv_size = 1024;
+const size_t tpmnv_vars_size = 1024;
 
 /* Calculate a SHA256 hash over the supplied buffer */
 static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
@@ -40,13 +41,22 @@ static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 /* Reformat the TPMNV space */
 static int tpmnv_format(void)
 {
-	memset(tpmnv_image, 0x00, tpmnv_size);
+	int rc;
 
-	tpmnv_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
-	tpmnv_image->header.magic_number = SECBOOT_VERSION;
+	memset(tpmnv_vars_image, 0x00, tpmnv_vars_size);
+	memset(tpmnv_control_image, 0x00, sizeof(struct tpmnv_control));
+
+	tpmnv_vars_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
+	tpmnv_vars_image->header.magic_number = SECBOOT_VERSION;
+	tpmnv_control_image->header.magic_number = SECBOOT_MAGIC_NUMBER;
+	tpmnv_control_image->header.magic_number = SECBOOT_VERSION;
 
 	/* Counts as first write to the TPM NV, as required by fresh NV indices */
-	return tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image, tpmnv_size, 0);
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
+	if (rc)
+		return rc;
+
+	return tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
 }
 
 /* Reformat the secboot PNOR space */
@@ -63,8 +73,8 @@ static int secboot_format(void)
 	secboot_image->header.version = SECBOOT_VERSION;
 
 	/* Write the hash of the empty bank to the tpm so loads work in the future */
-	calc_bank_hash(tpmnv_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv, bank_hash[0]));
+	calc_bank_hash(tpmnv_control_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv_control, bank_hash[0]));
 
 	if (rc)
 		return rc;
@@ -72,12 +82,32 @@ static int secboot_format(void)
 	return platform.secboot_write(0, secboot_image, sizeof(struct secboot));
 }
 
+
+/* Serialize one priority variable using a tighter packing scheme */
+/* Returns the advanced target pointer */
+static char *secboot_serialize_priority(char *target, struct secvar_node *node, char *end)
+{
+	if ((target + node->var->key_len + node->var->data_size + offsetof(struct secvar, key))	> end)
+		return NULL;
+
+	memcpy(target, &node->var->key_len, sizeof(node->var->key_len));
+	target += sizeof(node->var->key_len);
+	memcpy(target, &node->var->data_size, sizeof(node->var->data_size));
+	target += sizeof(node->var->data_size);
+	memcpy(target, node->var->key, node->var->key_len);
+	target += node->var->key_len;
+	memcpy(target, node->var->data, node->var->data_size);
+
+	return target;
+}
+
+
 /* Flattens a linked-list bank into a contiguous buffer for writing */
 static int secboot_serialize_bank(struct list_head *bank, char *target, size_t target_size, int flags)
 {
 	struct secvar_node *node;
 	char *tmp = target;
-	int complete_priority = 0;
+	char *end = target + target_size;
 
 	if (!bank)
 		return OPAL_INTERNAL_ERROR;
@@ -88,30 +118,17 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 		if (node->flags != flags)
 			continue;
 
+		/* Priority variable has a different packing scheme */
+		if (flags == SECVAR_FLAG_PRIORITY) {
+			target = secboot_serialize_priority(target, node, end);
+			if (!target)
+				return OPAL_EMPTY;
+			continue;
+		}
+
 		/* Bail early if we are out of storage space */
 		if ((target - tmp) + sizeof(struct secvar) + node->var->data_size > target_size) {
 			return OPAL_EMPTY;
-		}
-
-		/* We only have space for one priority variable in TPMNV space,
-		 *  so accept the first one, and bail if we attempt to continue looping. */
-		if (complete_priority) {
-			prlog(PR_ERR, "This driver only supports one priority variable, and more than one was given.");
-			return OPAL_INTERNAL_ERROR;
-		}
-
-		/* Priority variable is packs the key tightly to save space */
-		if (flags == SECVAR_FLAG_PRIORITY) {
-			memcpy(target, &node->var->key_len, sizeof(node->var->key_len));
-			target += sizeof(node->var->key_len);
-			memcpy(target, &node->var->data_size, sizeof(node->var->data_size));
-			target += sizeof(node->var->data_size);
-			memcpy(target, node->var->key, node->var->key_len);
-			target += node->var->key_len;
-			memcpy(target, node->var->data, node->var->data_size);
-
-			complete_priority = 1;
-			continue;
 		}
 
 		memcpy(target, node->var, sizeof(struct secvar) + node->var->data_size);
@@ -171,20 +188,20 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 	int rc;
 	uint64_t bit;
 
-	bit = CYCLE_BIT(tpmnv_image->active_bit);
-	rc = secboot_serialize_bank(bank, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), SECVAR_FLAG_PRIORITY);
+	bit = CYCLE_BIT(tpmnv_control_image->active_bit);
+	rc = secboot_serialize_bank(bank, tpmnv_vars_image->vars, tpmnv_vars_size - sizeof(struct tpmnv_vars), SECVAR_FLAG_PRIORITY);
 	if (rc)
 		goto out;
 
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->priority_var, tpmnv_size - offsetof(struct tpmnv, priority_var), offsetof(struct tpmnv, priority_var));
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
 
 	/* Calculate the bank hash, and write to TPM NV */
 	rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
 	if (rc)
 		goto out;
 
-	calc_bank_hash(tpmnv_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH, offsetof(struct tpmnv, bank_hash[bit]));
+	calc_bank_hash(tpmnv_control_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[bit], SHA256_DIGEST_LENGTH, offsetof(struct tpmnv_control, bank_hash[bit]));
 	if (rc)
 		goto out;
 
@@ -194,8 +211,8 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 		goto out;
 
 	/* Flip the bit, and write to TPM NV */
-	tpmnv_image->active_bit = bit;
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_INDEX, &tpmnv_image->active_bit, sizeof(tpmnv_image->active_bit), offsetof(struct tpmnv, active_bit));
+	tpmnv_control_image->active_bit = bit;
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, &tpmnv_control_image->active_bit, sizeof(tpmnv_control_image->active_bit), offsetof(struct tpmnv_control, active_bit));
 out:
 
 	return rc;
@@ -224,44 +241,80 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 	return rc;
 }
 
+/* Priority variables stored in TPMNV have to be packed tighter to make the most
+ * out of the small amount of space available */
+static int secboot_tpm_load_from_tpmnv(struct list_head *bank)
+{
+	struct secvar *hdr;
+	struct secvar_node *node;
+	char *cur;
+	char *end;
+
+	cur = tpmnv_vars_image->vars;
+	end = ((char *) tpmnv_vars_image) + tpmnv_vars_size;
+
+	while (cur < end) {
+		/* Ensure there is enough space to even check for another var header */
+		if ((end - cur) < offsetof(struct secvar, key))
+			break;
+
+		/* Temporary cast to check sizes in the header */
+		hdr = (struct secvar *) cur;
+
+		/* Check if we have a priority variable to load */
+		/* Should be zeroes if nonexistent */
+		if ((hdr->key_len == 0) && (hdr->data_size == 0))
+			break;
+
+		/* Sanity check our potential priority variables */
+		if ((hdr->key_len > SECVAR_MAX_KEY_LEN)
+		     || (hdr->data_size > SECBOOT_TPM_MAX_VAR_SIZE)) {
+			prlog(PR_ERR, "TPM NV Priority variable has impossible sizes, probably internal bug. "
+				      "len = %llu, size = %llu\n", hdr->key_len, hdr->data_size);
+			return OPAL_INTERNAL_ERROR;
+		}
+
+		/* Advance cur over the two size values */
+		cur += sizeof(hdr->key_len);
+		cur += sizeof(hdr->data_size);
+
+		/* Ensure the expected key/data size doesn't exceed the remaining buffer */
+		if ((end - cur) < (hdr->data_size + hdr->key_len))
+			return OPAL_INTERNAL_ERROR;
+
+		node = alloc_secvar(hdr->data_size);
+		if (!node)
+			return OPAL_NO_MEM;
+
+		node->var->key_len = hdr->key_len;
+		node->var->data_size = hdr->data_size;
+		node->flags |= SECVAR_FLAG_PRIORITY;
+
+		memcpy(node->var->key, cur, hdr->key_len);
+		cur += hdr->key_len;
+		memcpy(node->var->data, cur, hdr->data_size);
+		cur += hdr->data_size;
+
+		list_add_tail(bank, &node->link);
+	}
+
+	return OPAL_SUCCESS;
+}
 
 static int secboot_tpm_load_variable_bank(struct list_head *bank)
 {
 	char bank_hash[SHA256_DIGEST_LENGTH];
-	uint64_t bit = tpmnv_image->active_bit;
-	struct secvar *tmp;
-	struct secvar_node *node;
+	uint64_t bit = tpmnv_control_image->active_bit;
+	int rc;
 
 	/* Check the hash of the bank we loaded from PNOR versus the expected hash in TPM NV */
 	calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
-	if (memcmp(bank_hash, tpmnv_image->bank_hash[bit], SHA256_DIGEST_LENGTH))
+	if (memcmp(bank_hash, tpmnv_control_image->bank_hash[bit], SHA256_DIGEST_LENGTH))
 		return OPAL_PERMISSION; /* Tampered pnor space detected, abandon ship */
 
-	/* Temporary cast to check sizes */
-	tmp = (struct secvar *) tpmnv_image->priority_var;
-	/* Sanity check our potential priority variable */
-	/* Should be zeroes if nonexistent */
-	if ((tmp->key_len > SECVAR_MAX_KEY_LEN)
-	     || (tmp->data_size > SECBOOT_TPM_MAX_VAR_SIZE)) {
-		prlog(PR_ERR, "TPM NV Priority variable has impossible sizes, probably internal bug. "
-			      "len = %llu, size = %llu\n", tmp->key_len, tmp->data_size);
-		return OPAL_INTERNAL_ERROR;
-	}
-	/* Check if we have a priority variable to load */
-	if (tmp->key_len != 0) {
-		node = alloc_secvar(tmp->data_size);
-		if (!node)
-			return OPAL_NO_MEM;
-
-		node->var->key_len = tmp->key_len;
-		node->var->data_size = tmp->data_size;
-		node->flags |= SECVAR_FLAG_PRIORITY;
-
-		memcpy(node->var->key, tpmnv_image->priority_var + offsetof(struct secvar, key), tmp->key_len);
-		memcpy(node->var->data, tpmnv_image->priority_var + offsetof(struct secvar, key) + tmp->key_len, tmp->data_size);
-
-		list_add_tail(bank, &node->link);
-	}
+	rc = secboot_tpm_load_from_tpmnv(bank);
+	if (rc)
+		return rc;
 
 	return secboot_load_from_pnor(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
 }
@@ -281,6 +334,56 @@ static int secboot_tpm_load_bank(struct list_head *bank, int section)
 	return OPAL_HARDWARE;
 }
 
+static int secboot_tpm_init_tpmnv(int *tpm_first_init)
+{
+	int rc;
+
+	if (!tpm_first_init)
+		return OPAL_INTERNAL_ERROR;
+
+	tpmnv_vars_image = zalloc(tpmnv_vars_size);
+	if (!tpmnv_vars_image)
+		return OPAL_NO_MEM;
+	tpmnv_control_image = zalloc(sizeof(struct tpmnv_control));
+	if (!tpmnv_control_image)
+		return OPAL_NO_MEM;
+
+	// TODO use getcap
+
+	/* Read from each TPM NV index, define it if it doesn't exist */
+	/* Defining the index invokes a full reformat */
+	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
+	if (rc == TPM_RC_NV_UNINITIALIZED) {
+		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, 'p', 'p', tpmnv_vars_size);
+		if (rc)
+			return rc;
+
+		*tpm_first_init = 1;
+		goto out;
+	} else if (rc)
+		return rc;
+
+	rc = tpmnv_ops.read(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
+	if (rc == TPM_RC_NV_UNINITIALIZED) {
+		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, 'p', 'p', sizeof(struct tpmnv_control));
+		if (rc)
+			return rc;
+
+		*tpm_first_init = 1;
+		goto out;
+	} else if (rc)
+		return rc;
+
+	/* Trigger a reformat if for some reason the NV index was cleared */
+	if (tpmnv_vars_image->header.magic_number != SECBOOT_MAGIC_NUMBER)
+		*tpm_first_init = 1;
+	if (tpmnv_control_image->header.magic_number != SECBOOT_MAGIC_NUMBER)
+		*tpm_first_init = 1;
+
+out:
+	return OPAL_SUCCESS;
+}
+
 
 static int secboot_tpm_store_init(void)
 {
@@ -296,27 +399,11 @@ static int secboot_tpm_store_init(void)
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
-	tpmnv_image = zalloc(tpmnv_size);
-	if (!tpmnv_image)
-		return OPAL_NO_MEM;
-
-	/* Read from the TPM NV index, define it if it doesn't exist */
-	rc = tpmnv_ops.read(SECBOOT_TPMNV_INDEX, tpmnv_image, tpmnv_size, 0);
-	if (rc == TPM_RC_NV_UNINITIALIZED) {
-		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_INDEX, 'p', 'p', tpmnv_size);
-		if (rc)
-
-		/* Defining the index invokes a full reformat */
-		tpm_first_init = 1;
-	}
-	else if (rc) {
-		return rc;
-	}
-
-	/* Trigger a reformat if for some reason the NV index was cleared */
-	if (tpmnv_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
-		tpm_first_init = 1;
-	}
+	/* Allocate and load data from the TPM NV indices,
+	 * define them if they are not already. */
+	rc = secboot_tpm_init_tpmnv(&tpm_first_init);
+	if (rc)
+		goto error;
 
 	rc = platform.secboot_info(&secboot_size);
 	if (rc) {
@@ -333,7 +420,6 @@ static int secboot_tpm_store_init(void)
 	secboot_image = memalign(0x1000, sizeof(struct secboot));
 	if (!secboot_image) {
 		prlog(PR_ERR, "Failed to allocate space for the secboot image\n");
-		free(tpmnv_image);
 		rc = OPAL_NO_MEM;
 		goto error;
 	}
@@ -371,8 +457,10 @@ static int secboot_tpm_store_init(void)
 error:
 	free(secboot_image);
 	secboot_image = NULL;
-	free(tpmnv_image);
-	tpmnv_image = NULL;
+	free(tpmnv_vars_image);
+	tpmnv_vars_image = NULL;
+	free(tpmnv_control_image);
+	tpmnv_control_image = NULL;
 
 	return rc;
 }
