@@ -66,11 +66,20 @@ int run_test(void)
 	memcpy(tmp->var->data, "moredata", 8);
 	list_add_tail(&variable_bank, &tmp->link);
 
+	// Add a priority variable, ensure that works
+	tmp = alloc_secvar(4);
+	tmp->var->key_len = 9;
+	memcpy(tmp->var->key, "priority", 9);
+	tmp->var->data_size = 4;
+	memcpy(tmp->var->data, "meep", 4);
+	tmp->flags |= SECVAR_FLAG_PRIORITY;
+	list_add_tail(&variable_bank, &tmp->link);
+
 	// Write the bank
 	rc = secboot_tpm_write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
 	// should write to bank 1 first
-	ASSERT(secboot_image->bank[1][0] != 0); 
+	ASSERT(secboot_image->bank[1][0] != 0);
 	ASSERT(secboot_image->bank[0][0] == 0);
 
 	// Clear the variable list
@@ -80,17 +89,17 @@ int run_test(void)
 	// Load the bank
 	rc = secboot_tpm_load_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
-	ASSERT(2 == list_length(&variable_bank));
+	ASSERT(3 == list_length(&variable_bank));
 
 	// Change a variable
-	tmp = list_top(&variable_bank, struct secvar_node, link);
+	tmp = list_tail(&variable_bank, struct secvar_node, link);
 	memcpy(tmp->var->data, "somethin", 8);
 
 	// Write the bank
 	rc = secboot_tpm_write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
-	// should have data in both now	
-	ASSERT(secboot_image->bank[0][0] != 0); 
+	// should have data in both now
+	ASSERT(secboot_image->bank[0][0] != 0);
 	ASSERT(secboot_image->bank[1][0] != 0);
 
 	clear_bank_list(&variable_bank);
@@ -127,7 +136,8 @@ int main(void)
 	else
 		printf(COLOR_GREEN "OK" COLOR_RESET "\n");
 
-	free(tpmnv_image);
+	free(tpmnv_vars_image);
+	free(tpmnv_control_image);
 	free(secboot_image);
 
 	return rc;
