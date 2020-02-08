@@ -5,7 +5,7 @@ SECVAR_BACKEND_DIR = $(SRC)/libstb/secvar/backend
 
 SUBDIRS += $(SECVAR_BACKEND_DIR)
 
-SECVAR_BACKEND_SRCS = edk2-compat.c
+SECVAR_BACKEND_SRCS = edk2-compat.c edk2-compat-util.c backend-common.c
 SECVAR_BACKEND_OBJS = $(SECVAR_BACKEND_SRCS:%.c=%.o)
 SECVAR_BACKEND = $(SECVAR_BACKEND_DIR)/built-in.a
 

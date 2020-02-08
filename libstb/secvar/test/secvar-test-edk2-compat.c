@@ -20,6 +20,8 @@
 
 #include "secvar_common_test.c"
 #include "../backend/edk2-compat.c"
+#include "../backend/edk2-compat-util.c"
+#include "../backend/backend-common.c"
 #include "../secvar_util.c"
 #define MBEDTLS_PKCS7_USE_C
 #include "../../crypto/pkcs7/pkcs7.c"
