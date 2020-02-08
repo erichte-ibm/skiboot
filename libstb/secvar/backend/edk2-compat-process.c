@@ -1,0 +1,639 @@
+// SPDX-License-Identifier: Apache-2.0
+/* Copyright 2019 IBM Corp. */
+#ifndef pr_fmt
+#define pr_fmt(fmt) "EDK2_COMPAT: " fmt
+#endif
+
+#include <opal.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <ccan/endian/endian.h>
+#include <mbedtls/error.h>
+#include <device.h>
+#include "libstb/crypto/pkcs7/pkcs7.h"
+#include "edk2.h"
+#include "../secvar.h"
+#include "../secvar_devtree.h"
+#include "edk2-compat-process.h"
+
+bool setup_mode;
+
+int update_variable_in_bank(struct secvar *secvar, const char *data,
+			    uint64_t dsize)
+{
+        struct secvar_node *node;
+
+        node = find_secvar(secvar->key, secvar->key_len, &variable_bank);
+        if (!node)
+                return OPAL_EMPTY;
+
+        /* Reallocate the data memory, if there is change in data size */
+        if (node->size < dsize)
+                if (realloc_secvar(node, dsize))
+                        return OPAL_NO_MEM;
+
+        if (dsize && data)
+                memcpy(node->var->data, data, dsize);
+        node->var->data_size = dsize;
+
+        /* Clear the volatile bit only if updated with positive data size */
+        if (dsize)
+                node->flags &= ~SECVAR_FLAG_VOLATILE;
+        else
+                node->flags |= SECVAR_FLAG_VOLATILE;
+
+        /* Is it required to be set everytime ? */
+        if ((!strncmp(secvar->key, "PK", 3)))
+                node->flags |= SECVAR_FLAG_PRIORITY;
+
+        return 0;
+}
+
+char *utf8_to_ucs2(const char *key, size_t keylen)
+{
+	int i;
+	char *str;
+
+	str = zalloc(keylen * 2);
+	if (!str)
+		return NULL;
+
+	for (i = 0; i < keylen*2; key++) {
+		str[i++] = *key;
+		str[i++] = '\0';
+	}
+
+	return str;
+}
+
+void get_key_authority(const char *ret[3], const char *key)
+{
+	int i = 0;
+
+	if (key_equals(key, "PK"))
+		ret[i++] = "PK";
+	if (key_equals(key, "KEK"))
+		ret[i++] = "PK";
+	if (key_equals(key, "db") || key_equals(key, "dbx")) {
+		ret[i++] = "KEK";
+		ret[i++] = "PK";
+	}
+	ret[i] = NULL;
+}
+
+int get_esl_signature_list_size(char *buf, size_t buflen)
+{
+	EFI_SIGNATURE_LIST list;
+
+	if (buflen < sizeof(EFI_SIGNATURE_LIST))
+		return OPAL_PARAMETER;
+
+	memcpy(&list, buf, sizeof(EFI_SIGNATURE_LIST));
+
+	prlog(PR_DEBUG, "size of signature list size is %u\n",
+			le32_to_cpu(list.SignatureListSize));
+
+	return le32_to_cpu(list.SignatureListSize);
+}
+
+int get_esl_cert(char *buf, size_t buflen, char **cert)
+{
+	size_t sig_data_offset;
+	size_t size;
+	EFI_SIGNATURE_LIST list;
+
+	if (buflen < sizeof(EFI_SIGNATURE_LIST))
+		return OPAL_PARAMETER;
+
+	memcpy(&list, buf, sizeof(EFI_SIGNATURE_LIST));
+
+	size = le32_to_cpu(list.SignatureSize) - sizeof(uuid_t);
+	/* No certificate in the ESL */
+	if (size <= 0)
+		return OPAL_PERMISSION;
+
+	if (!cert)
+		return OPAL_PARAMETER;
+
+	*cert = zalloc(size);
+	if (!(*cert))
+		return OPAL_NO_MEM;
+
+	prlog(PR_DEBUG,"size of signature list size is %u\n",
+			le32_to_cpu(list.SignatureListSize));
+	prlog(PR_DEBUG, "size of signature header size is %u\n",
+			le32_to_cpu(list.SignatureHeaderSize));
+	prlog(PR_DEBUG, "size of signature size is %u\n",
+			le32_to_cpu(list.SignatureSize));
+
+	sig_data_offset = sizeof(list) + le32_to_cpu(list.SignatureHeaderSize)
+		+ 16 * sizeof(uint8_t);
+	if (sig_data_offset > buflen) {
+		free(*cert);
+		return OPAL_PARAMETER;
+	}
+
+	memcpy(*cert, buf + sig_data_offset, size);
+
+	return size;
+}
+
+int get_pkcs7_len(struct efi_variable_authentication_2 *auth)
+{
+	uint32_t dw_length;
+	size_t size;
+
+	if (!auth)
+		return OPAL_PARAMETER;
+
+	dw_length = le32_to_cpu(auth->auth_info.hdr.dw_length);
+	size = dw_length - (sizeof(auth->auth_info.hdr.dw_length)
+			+ sizeof(auth->auth_info.hdr.w_revision)
+			+ sizeof(auth->auth_info.hdr.w_certificate_type)
+			+ sizeof(auth->auth_info.cert_type));
+
+	return size;
+}
+
+int get_auth_descriptor2(void *buf, size_t buflen, char **auth_buffer)
+{
+	struct efi_variable_authentication_2 *auth = NULL;
+	size_t auth_buffer_size;
+	int len;
+
+	if (buflen < sizeof(struct efi_variable_authentication_2))
+			return OPAL_PARAMETER;
+
+	auth = buf;
+
+	len = get_pkcs7_len(auth);
+
+	/* We need PKCS7 data else there is no signature */
+	if (len <= 0)
+		return OPAL_PARAMETER;
+
+	if (!auth_buffer)
+		return OPAL_PARAMETER;
+
+	auth_buffer_size = sizeof(auth->timestamp) + sizeof(auth->auth_info.hdr)
+			   + sizeof(auth->auth_info.cert_type) + len;
+
+	if (auth_buffer_size <= 0)
+		return OPAL_PARAMETER;
+
+	*auth_buffer = zalloc(auth_buffer_size);
+	if (!(*auth_buffer))
+		return OPAL_NO_MEM;
+
+	memcpy(*auth_buffer, buf, auth_buffer_size);
+
+	return auth_buffer_size;
+}
+
+/* Check that PK has single ESL */
+bool is_single_pk(char *data, size_t data_size)
+{
+	char *auth_buffer = NULL;
+	char *newesl = NULL;
+	int auth_buffer_size;
+	int new_data_size;
+	int esllistsize;
+
+	/* Calculate the size of the authentication buffer */
+	auth_buffer_size = get_auth_descriptor2(data, data_size, &auth_buffer);
+	free(auth_buffer);
+	if (auth_buffer_size <= 0)
+		return false;
+
+	/* Calculate the size of new ESL data */
+	new_data_size = data_size - auth_buffer_size;
+	if (!new_data_size)
+		return true;
+
+	newesl = zalloc(new_data_size);
+	/* If there is an error in allocation, we cannot say anything about
+	 * the data so do not validate it
+	 */
+	if (!newesl)
+		return false;
+
+	memcpy(newesl, data + auth_buffer_size, new_data_size);
+
+	esllistsize = get_esl_signature_list_size(newesl, new_data_size);
+	free(newesl);
+	/* If there is failure in parsing the new data, we cannot say anything
+	 * about the data so do not validate it
+	 */
+	if (esllistsize <= 0)
+		return false;
+
+	/* Here check if the new data is actually bigger than a single
+	 * certificate
+	 */
+	if (new_data_size > esllistsize)
+		return false;
+
+	return true;
+}
+
+struct efi_time *get_last_timestamp(const char *key)
+{
+	struct secvar_node *node;
+	char *timestamp_list;
+	u8 off;
+
+	node = find_secvar("TS", 3, &variable_bank);
+
+	/* We cannot find timestamp variable, did someone tamper it ? */
+	if (!node)
+		return NULL;
+
+	if (!strncmp(key, "PK", 3))
+		off = 0;
+	else if (!strncmp(key, "KEK", 4))
+		off = 1;
+	else if (!strncmp(key, "db", 3))
+		off = 2;
+	else if (!strncmp(key, "dbx", 4))
+		off = 3;
+	else
+		return NULL;
+
+	timestamp_list = node->var->data;
+	if (!timestamp_list)
+		return NULL;
+
+	return &((struct efi_time *)timestamp_list)[off];
+}
+
+int update_timestamp(char *key, struct efi_time *timestamp)
+{
+	struct efi_time *prev;
+
+	prev = get_last_timestamp(key);
+	if (prev == NULL)
+		return OPAL_INTERNAL_ERROR;
+
+	memcpy(prev, timestamp, sizeof(struct efi_time));
+
+	prlog(PR_DEBUG, "updated prev year is %d month %d day %d\n",
+			le16_to_cpu(prev->year), prev->month, prev->day);
+
+	return OPAL_SUCCESS;
+}
+
+int check_timestamp(char *key, struct efi_time *timestamp)
+{
+	struct efi_time *prev;
+
+	prev = get_last_timestamp(key);
+	if (prev == NULL)
+		return OPAL_INTERNAL_ERROR;
+
+	prlog(PR_DEBUG, "timestamp year is %d month %d day %d\n",
+			le16_to_cpu(timestamp->year), timestamp->month,
+			timestamp->day);
+	prlog(PR_DEBUG, "prev year is %d month %d day %d\n",
+			le16_to_cpu(prev->year), prev->month, prev->day);
+	if (le16_to_cpu(timestamp->year) > le16_to_cpu(prev->year))
+		return OPAL_SUCCESS;
+	if (le16_to_cpu(timestamp->year) < le16_to_cpu(prev->year))
+		return OPAL_PERMISSION;
+
+	if (timestamp->month > prev->month)
+		return OPAL_SUCCESS;
+	if (timestamp->month < prev->month)
+		return OPAL_PERMISSION;
+
+	if (timestamp->day > prev->day)
+		return OPAL_SUCCESS;
+	if (timestamp->day < prev->day)
+		return OPAL_PERMISSION;
+
+	if (timestamp->hour > prev->hour)
+		return OPAL_SUCCESS;
+	if (timestamp->hour < prev->hour)
+		return OPAL_PERMISSION;
+
+	if (timestamp->minute > prev->minute)
+		return OPAL_SUCCESS;
+	if (timestamp->minute < prev->minute)
+		return OPAL_PERMISSION;
+
+	if (timestamp->second > prev->second)
+		return OPAL_SUCCESS;
+
+	/* Time less than or equal to is considered as replay*/
+	if (timestamp->second <= prev->second)
+		return OPAL_PERMISSION;
+
+	/* nanosecond, timezone, daylight and pad2 are meant to be zero */
+
+	return OPAL_SUCCESS;
+}
+
+int get_pkcs7(struct efi_variable_authentication_2 *auth, mbedtls_pkcs7 **pkcs7)
+{
+	char *checkpkcs7cert = NULL;
+	int len;
+	int rc;
+
+	len = get_pkcs7_len(auth);
+	if (len <= 0)
+		return OPAL_PARAMETER;
+
+	if (!pkcs7)
+		return OPAL_PARAMETER;
+
+	*pkcs7 = malloc(sizeof(struct mbedtls_pkcs7));
+	if (!(*pkcs7))
+		return OPAL_NO_MEM;
+
+	mbedtls_pkcs7_init(*pkcs7);
+	rc = mbedtls_pkcs7_parse_der(
+			(const unsigned char *)auth->auth_info.cert_data,
+			(const unsigned int)len, *pkcs7);
+	if (rc) {
+		prlog(PR_ERR, "Parsing pkcs7 failed %04x\n", rc);
+		mbedtls_pkcs7_free(*pkcs7);
+		return rc;
+	}
+
+	checkpkcs7cert = zalloc(CERT_BUFFER_SIZE);
+	if (!checkpkcs7cert) {
+		mbedtls_pkcs7_free(*pkcs7);
+		return OPAL_NO_MEM;
+	}
+
+	rc = mbedtls_x509_crt_info(checkpkcs7cert, CERT_BUFFER_SIZE, "CRT:",
+			&((*pkcs7)->signed_data.certs));
+	if (rc)
+		rc = OPAL_PARAMETER;
+	else
+		prlog(PR_DEBUG, "%s \n", checkpkcs7cert);
+
+	free(checkpkcs7cert);
+	mbedtls_pkcs7_free(*pkcs7);
+
+	return OPAL_SUCCESS;
+}
+
+int verify_signature(struct efi_variable_authentication_2 *auth, char *newcert,
+		     size_t new_data_size, struct secvar *avar)
+{
+	mbedtls_pkcs7 *pkcs7 = NULL;
+	mbedtls_x509_crt x509;
+	char *signing_cert = NULL;
+	char *x509_buf = NULL;
+	int signing_cert_size;
+	int rc;
+	char *errbuf;
+	int eslvarsize;
+	int eslsize;
+	int offset = 0;
+
+	if (!auth)
+		return OPAL_PARAMETER;
+
+	/* Extract the pkcs7 from the auth structure */
+	rc  = get_pkcs7(auth, &pkcs7);
+	/* Failure to parse pkcs7 implies bad input. */
+	if (rc != OPAL_SUCCESS)
+		return OPAL_PARAMETER;
+
+	prlog(PR_INFO, "Load the signing certificate from the keystore");
+
+	eslvarsize = avar->data_size;
+
+	/* Variable is not empty */
+	while (eslvarsize > 0) {
+		prlog(PR_DEBUG, "esl var size size is %d offset is %d\n", eslvarsize, offset);
+		if (eslvarsize < sizeof(EFI_SIGNATURE_LIST))
+			break;
+
+		/* Calculate the size of the ESL */
+		eslsize = get_esl_signature_list_size(avar->data + offset, eslvarsize);
+		/* If could not extract the size */
+		if (eslsize <= 0) {
+			rc = OPAL_PARAMETER;
+			break;
+		}
+
+		/* Extract the certificate from the ESL */
+		signing_cert_size = get_esl_cert(avar->data + offset, eslvarsize, &signing_cert);
+		if (signing_cert_size < 0) {
+			rc = signing_cert_size;
+			break;
+		}
+
+		mbedtls_x509_crt_init(&x509);
+		rc = mbedtls_x509_crt_parse(&x509, signing_cert, signing_cert_size);
+
+		/* If failure in parsing the certificate, try next */
+		if(rc) {
+			prlog(PR_INFO, "X509 certificate parsing failed %04x\n", rc);
+			goto next;
+		}
+
+		x509_buf = zalloc(CERT_BUFFER_SIZE);
+		rc = mbedtls_x509_crt_info(x509_buf, CERT_BUFFER_SIZE, "CRT:", &x509);
+
+		/* If failure in reading the certificate, try next */
+		if (rc < 0) {
+			free(x509_buf);
+			goto next;
+		}
+
+		prlog(PR_INFO, "%s \n", x509_buf);
+		free(x509_buf);
+
+		/* Verify the signature */
+		rc = mbedtls_pkcs7_signed_data_verify(pkcs7, &x509, newcert,
+						      new_data_size);
+
+		/* If you find a signing certificate, you are done */
+		if (rc == 0) {
+			prlog(PR_INFO, "Signature Verification passed\n");
+			mbedtls_x509_crt_free(&x509);
+			break;
+		}
+
+		errbuf = zalloc(MBEDTLS_ERR_BUFFER_SIZE);
+		mbedtls_strerror(rc, errbuf, MBEDTLS_ERR_BUFFER_SIZE);
+		prlog(PR_INFO, "Signature Verification failed %02x %s\n",
+				rc, errbuf);
+		free(errbuf);
+
+next:
+		/* Look for the next ESL */
+		offset = offset + eslsize;
+		eslvarsize = eslvarsize - eslsize;
+		mbedtls_x509_crt_free(&x509);
+		free(signing_cert);
+		/* Since we are going to allocate again in the next iteration */
+		signing_cert = NULL;
+
+	}
+
+	free(signing_cert);
+	mbedtls_pkcs7_free(pkcs7);
+	free(pkcs7);
+
+	return rc;
+}
+
+/* Create the single buffer
+ * name || vendor guid || attributes || timestamp || newcontent
+ * which is submitted as signed by the user.
+ * Returns number of bytes in the new buffer, else negative error
+ * code.
+ */
+int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
+		       char **buffer, size_t *buffer_size,
+		       struct efi_time *timestamp)
+{
+	le32 attr = cpu_to_le32(SECVAR_ATTRIBUTES);
+	size_t offset = 0;
+	size_t varlen;
+	char *wkey;
+	uuid_t guid;
+
+	if (key_equals(key, "PK")
+	    || key_equals(key, "KEK"))
+		guid = EFI_GLOBAL_VARIABLE_GUID;
+	else if (key_equals(key, "db")
+	    || key_equals(key, "dbx"))
+		guid = EFI_IMAGE_SECURITY_DATABASE_GUID;
+
+	/* Convert utf8 name to ucs2 width */
+	varlen = strlen(key) * 2;
+	wkey = utf8_to_ucs2(key, strlen(key));
+
+	/* Prepare the single buffer */
+	*buffer_size = varlen + UUID_SIZE + sizeof(attr)
+		       + sizeof(struct efi_time) + new_data_size;
+	*buffer = zalloc(*buffer_size);
+	if (!*buffer)
+		return OPAL_NO_MEM;
+
+	memcpy(*buffer + offset, wkey, varlen);
+	offset = offset + varlen;
+	memcpy(*buffer + offset, &guid, sizeof(guid));
+	offset = offset + sizeof(guid);
+	memcpy(*buffer + offset, &attr, sizeof(attr));
+	offset = offset + sizeof(attr);
+	memcpy(*buffer + offset, timestamp , sizeof(struct efi_time));
+	offset = offset + sizeof(struct efi_time);
+
+	memcpy(*buffer + offset, new_data, new_data_size);
+	offset = offset + new_data_size;
+
+	free(wkey);
+
+	return offset;
+}
+
+bool is_pkcs7_sig_format(void *data)
+{
+	struct efi_variable_authentication_2 *auth = data;
+	uuid_t pkcs7_guid = EFI_CERT_TYPE_PKCS7_GUID;
+
+	if(!(memcmp(&auth->auth_info.cert_type, &pkcs7_guid, 16) == 0))
+		return false;
+
+	return true;
+}
+
+int process_update(struct secvar_node *update, char **newesl,
+		   int *new_data_size, struct efi_time *timestamp)
+{
+	struct efi_variable_authentication_2 *auth = NULL;
+        char *auth_buffer = NULL;
+        int auth_buffer_size = 0;
+        const char *key_authority[3];
+        char *tbhbuffer = NULL;
+        size_t tbhbuffersize = 0;
+        struct secvar_node *anode = NULL;
+        int rc = 0;
+        int i;
+
+	auth_buffer_size = get_auth_descriptor2(update->var->data,
+						update->var->data_size,
+						&auth_buffer);
+	if ((auth_buffer_size < 0)
+	     || (update->var->data_size < auth_buffer_size)) {
+		rc = auth_buffer_size;
+		goto out;
+	}
+
+	auth = (struct efi_variable_authentication_2 *)auth_buffer;
+
+	if (!timestamp) {
+		rc = OPAL_INTERNAL_ERROR;
+		goto out;
+	}
+
+	memcpy(timestamp, auth_buffer, sizeof(struct efi_time));
+
+	rc = check_timestamp(update->var->key, timestamp);
+	/* Failure implies probably an older command being resubmitted */
+	if (rc != OPAL_SUCCESS)
+		goto out;
+
+	/* Calculate the size of new ESL data */
+	*new_data_size = update->var->data_size - auth_buffer_size;
+	if (*new_data_size < 0) {
+		rc = OPAL_PARAMETER;
+		goto out;
+	}
+	*newesl = zalloc(*new_data_size);
+	if (!(*newesl)) {
+		rc = OPAL_NO_MEM;
+		goto out;
+	}
+	memcpy(*newesl, update->var->data + auth_buffer_size, *new_data_size);
+
+	if (setup_mode) {
+		rc = OPAL_SUCCESS;
+		goto out;
+	}
+
+	/* Prepare the data to be verified */
+	rc = get_data_to_verify(update->var->key, *newesl, *new_data_size,
+				&tbhbuffer, &tbhbuffersize, timestamp);
+
+	/* Get the authority to verify the signature */
+	get_key_authority(key_authority, update->var->key);
+	i = 0;
+
+	/* Try for all the authorities that are allowed to sign.
+	 * For eg. db/dbx can be signed by both PK or KEK
+	 */
+	while (key_authority[i] != NULL) {
+		prlog(PR_DEBUG, "key is %s\n", update->var->key);
+		prlog(PR_DEBUG, "key authority is %s\n", key_authority[i]);
+		anode = find_secvar(key_authority[i], strlen(key_authority[i]) + 1,
+				    &variable_bank);
+		if (!anode || !anode->var->data_size) {
+			i++;
+			continue;
+		}
+
+		/* Verify the signature */
+		rc = verify_signature(auth, tbhbuffer, tbhbuffersize,
+				      anode->var);
+
+		/* Break if signature verification is successful */
+		if (rc == OPAL_SUCCESS)
+			break;
+		i++;
+	}
+
+out:
+	free(auth_buffer);
+	free(tbhbuffer);
+
+	return rc;
+}

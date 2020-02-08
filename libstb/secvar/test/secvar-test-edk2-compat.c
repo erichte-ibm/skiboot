@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-#define TSS_NV_Read NULL
-#define TSS_NV_Write NULL
-#define TSS_NV_Define_Space NULL
-
 #include "secvar_common_test.c"
 #include "../backend/edk2-compat.c"
+#include "../backend/edk2-compat-process.c"
 #include "../secvar_util.c"
 #define MBEDTLS_PKCS7_USE_C
 #include "../../crypto/pkcs7/pkcs7.c"
