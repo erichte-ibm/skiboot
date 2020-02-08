@@ -99,6 +99,13 @@ static int edk2_compat_process(void)
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
+        /* Check if physical presence is asserted */
+        if (is_physical_presence_asserted()) {
+                prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
+                clear_all_os_keys();
+                setup_mode = true;
+        }
+
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
 	 * It should also clear the update bank.

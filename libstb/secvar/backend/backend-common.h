@@ -23,5 +23,10 @@ extern bool setup_mode;
 /* Update the variable with the new value. */
 int add_to_variable_bank(struct secvar *secvar, const char *data,
 			 uint64_t dsize);
+/* clear all os keys */
+int clear_all_os_keys(void);
+
+/* Check if physical presence is asserted */
+bool is_physical_presence_asserted(void);
 
 #endif
