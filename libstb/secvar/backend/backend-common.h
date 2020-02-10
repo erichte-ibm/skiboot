@@ -29,4 +29,14 @@ int clear_all_os_keys(void);
 /* Check if physical presence is asserted */
 bool is_physical_presence_asserted(void);
 
+/* Compares the hw-key-hash from device tree to the value stored in
+ * the protected storage to ensure it is not modified */
+int verify_hw_key_hash(void);
+
+/* Adds hw-key-hash */
+int add_hw_key_hash(void);
+
+/* Delete hw-key-hash */
+int delete_hw_key_hash(void);
+
 #endif
