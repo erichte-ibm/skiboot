@@ -7,6 +7,9 @@
 
 #define SECBOOT_VARIABLE_BANK_NUM	2
 
+/* Because mbedtls doesn't define this? */
+#define SHA256_DIGEST_LENGTH	32
+
 /* 0x5053424b = "PSBK" or Power Secure Boot Keystore */
 #define SECBOOT_MAGIC_NUMBER	0x5053424b
 #define SECBOOT_VERSION		1
@@ -34,7 +37,7 @@ struct tpmnv_vars {
 struct tpmnv_control {
 	struct secboot_header header;
 	uint8_t active_bit;
-	char bank_hash[SECBOOT_VARIABLE_BANK_NUM][32]; // TODO: set to hashalg size?
+	char bank_hash[SECBOOT_VARIABLE_BANK_NUM][SHA256_DIGEST_LENGTH];
 } __attribute__((packed));
 
 struct tpmnv_ops_s {
