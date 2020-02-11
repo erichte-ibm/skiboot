@@ -15,6 +15,7 @@
 #include "edk2.h"
 #include "../secvar.h"
 #include "edk2-compat-process.h"
+#include "edk2-compat-clear-keys.h"
 
 /*
  * Initializes supported variables as empty if not loaded from
@@ -97,6 +98,13 @@ static int edk2_compat_process(void)
 	int rc = 0;
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
+
+        /* Check if physical presence is asserted */
+        if (is_physical_presence_asserted()) {
+                prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
+                clear_all_os_keys();
+                setup_mode = true;
+        }
 
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
