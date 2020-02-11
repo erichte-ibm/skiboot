@@ -345,8 +345,6 @@ static int secboot_tpm_load_bank(struct list_head *bank, int section)
 			return secboot_tpm_load_variable_bank(bank);
 		case SECVAR_UPDATE_BANK:
 			return secboot_load_from_pnor(bank, secboot_image->update, SECBOOT_UPDATE_BANK_SIZE);
-		default:
-			return OPAL_HARDWARE;
 	}
 
 	return OPAL_HARDWARE;
