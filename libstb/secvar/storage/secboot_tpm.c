@@ -132,7 +132,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 			continue;
 
 		/* Priority variable has a different packing scheme */
-		if (flags == SECVAR_FLAG_PRIORITY) {
+		if (flags & SECVAR_FLAG_PRIORITY) {
 			target = secboot_serialize_priority(target, node, end);
 			if (!target)
 				return OPAL_EMPTY;
