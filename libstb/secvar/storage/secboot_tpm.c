@@ -15,7 +15,7 @@
 
 #define CYCLE_BIT(b) (b^0x1)
 
-// Because mbedtls doesn't define this?
+/* Because mbedtls doesn't define this? */
 #define SHA256_DIGEST_LENGTH	32
 
 #define SECBOOT_TPM_MAX_VAR_SIZE	8192
