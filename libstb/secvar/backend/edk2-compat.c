@@ -106,6 +106,14 @@ static int edk2_compat_process(void)
                 setup_mode = true;
         }
 
+	/* Check HW-KEY-HASH */
+	if (!setup_mode) {
+		rc = verify_hw_key_hash();
+		if (rc != OPAL_SUCCESS)
+			clear_all_os_keys();
+		setup_mode = true;
+	}
+
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
 	 * It should also clear the update bank.

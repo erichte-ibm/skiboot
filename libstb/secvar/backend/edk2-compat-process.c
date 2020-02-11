@@ -45,7 +45,8 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
                 node->flags |= SECVAR_FLAG_VOLATILE;
 
         /* Is it required to be set everytime ? */
-        if ((!strncmp(secvar->key, "PK", 3)))
+        if ((!strncmp(secvar->key, "PK", 3))
+	     || (!strncmp(secvar->key, "HWKH", 5)))
                 node->flags |= SECVAR_FLAG_PRIORITY;
 
         return 0;
