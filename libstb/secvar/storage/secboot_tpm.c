@@ -29,13 +29,24 @@ extern struct tpmnv_ops_s tpmnv_ops;
 const size_t tpmnv_vars_size = 1024;
 
 /* Calculate a SHA256 hash over the supplied buffer */
-static void calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
+static int calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 {
 	mbedtls_sha256_context ctx;
+	int rc;
 
 	mbedtls_sha256_init(&ctx);
-	mbedtls_sha256_update_ret(&ctx, source_buf, size);
+
+	rc = mbedtls_sha256_update_ret(&ctx, source_buf, size);
+	if (rc)
+		goto out;
+
 	mbedtls_sha256_finish_ret(&ctx, target_hash);
+	if (rc)
+		goto out;
+
+out:
+	mbedtls_sha256_free(&ctx);
+	return rc;
 }
 
 /* Reformat the TPMNV space */
@@ -73,9 +84,11 @@ static int secboot_format(void)
 	secboot_image->header.version = SECBOOT_VERSION;
 
 	/* Write the hash of the empty bank to the tpm so loads work in the future */
-	calc_bank_hash(tpmnv_control_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv_control, bank_hash[0]));
+	rc = calc_bank_hash(tpmnv_control_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
+	if (rc)
+		return rc;
 
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv_control, bank_hash[0]));
 	if (rc)
 		return rc;
 
@@ -200,7 +213,9 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 	if (rc)
 		goto out;
 
-	calc_bank_hash(tpmnv_control_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	rc = calc_bank_hash(tpmnv_control_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	if (rc) goto out;
+
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[bit], SHA256_DIGEST_LENGTH, offsetof(struct tpmnv_control, bank_hash[bit]));
 	if (rc)
 		goto out;
@@ -308,7 +323,10 @@ static int secboot_tpm_load_variable_bank(struct list_head *bank)
 	int rc;
 
 	/* Check the hash of the bank we loaded from PNOR versus the expected hash in TPM NV */
-	calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	rc = calc_bank_hash(bank_hash, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	if (rc)
+		return rc;
+
 	if (memcmp(bank_hash, tpmnv_control_image->bank_hash[bit], SHA256_DIGEST_LENGTH))
 		return OPAL_PERMISSION; /* Tampered pnor space detected, abandon ship */
 
