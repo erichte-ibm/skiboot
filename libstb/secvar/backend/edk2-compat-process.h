@@ -59,8 +59,8 @@ int get_pkcs7_len(struct efi_variable_authentication_2 *auth);
  */
 int get_auth_descriptor2(void *buf, size_t buflen, char **auth_buffer);
 
-/* Check that PK has single ESL */
-bool is_single_pk(char *data, size_t data_size);
+/* Check the format of the ESL */
+int validate_esl_list(char *key, char *esl, size_t size);
 
 /* Get the timestamp for the last update of the give key */
 struct efi_time *get_last_timestamp(const char *key);
