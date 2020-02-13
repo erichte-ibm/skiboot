@@ -28,6 +28,12 @@
 #include "./data/multipleDB.h"
 #include "./data/multiplePK.h"
 
+int reset_keystore(void) { return 0; }
+bool is_physical_presence_asserted(void) { return 0; }
+int add_hw_key_hash(void) { return 0; }
+int delete_hw_key_hash(void) { return 0; }
+int verify_hw_key_hash(void) { return 0; }
+
 const char *secvar_test_name = "edk2-compat";
 
 int secvar_set_secure_mode(void) { return 0; };
@@ -90,6 +96,7 @@ int run_test()
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process();
+	printf("rc is %d %04x\n", rc, rc);
 	ASSERT(OPAL_SUCCESS != rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
