@@ -284,7 +284,12 @@ int run_test()
 	tmp->var->key_len = 3;
 	memcpy(tmp->var->data, multiplePK_auth, multiplePK_auth_len);
 	tmp->var->data_size = multiplePK_auth_len;
-	ASSERT(0 != edk2_compat_validate(tmp->var));
+	ASSERT(0 == edk2_compat_validate(tmp->var));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process();
+	ASSERT(OPAL_SUCCESS != rc);
 
 	return 0;
 }
