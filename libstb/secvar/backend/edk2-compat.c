@@ -15,7 +15,7 @@
 #include "edk2.h"
 #include "../secvar.h"
 #include "edk2-compat-process.h"
-#include "edk2-compat-clear-keys.h"
+#include "edk2-compat-reset.h"
 
 /*
  * Initializes supported variables as empty if not loaded from
