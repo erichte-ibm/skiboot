@@ -12,7 +12,7 @@
 #include "edk2-compat-clear-keys.h"
 #include "../secvar.h"
 
-int clear_all_os_keys(void)
+int reset_keystore(void)
 {
 	struct secvar_node *node;
 
@@ -27,6 +27,9 @@ int clear_all_os_keys(void)
 
 	node = find_secvar("dbx", 4, &variable_bank);
 	update_variable_in_bank(node->var, NULL, 0);
+
+//	node = find_secvar("TS", 3, &variable_bank);
+//	update_variable_in_bank(node->var, NULL, 0);
 
 	return 0;
 }

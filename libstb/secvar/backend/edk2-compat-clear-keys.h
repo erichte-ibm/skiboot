@@ -18,8 +18,8 @@
 #include "../secvar.h"
 #include "../secvar_devtree.h"
 
-/* clear all os keys */
-int clear_all_os_keys(void);
+/* clear all os keys and the timestamp*/
+int reset_keystore(void);
 
 /* Check if physical presence is asserted */
 bool is_physical_presence_asserted(void);
