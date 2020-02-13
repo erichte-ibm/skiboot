@@ -109,9 +109,10 @@ static int edk2_compat_process(void)
 	/* Check HW-KEY-HASH */
 	if (!setup_mode) {
 		rc = verify_hw_key_hash();
-		if (rc != OPAL_SUCCESS)
+		if (rc != OPAL_SUCCESS) {
 			reset_keystore();
-		setup_mode = true;
+			setup_mode = true;
+		}
 	}
 
 	/* Loop through each command in the update bank.
