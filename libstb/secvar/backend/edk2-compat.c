@@ -184,13 +184,6 @@ static int edk2_compat_validate(struct secvar *var)
 			&& !key_equals(var->key, "dbx"))
 		return OPAL_PARAMETER;
 
-	/* PK update should contain single ESL. */
-	if (key_equals(var->key, "PK")) {
-		prlog(PR_DEBUG, "check if single PK\n");
-		if (!is_single_pk(var->data, var->data_size))
-			return OPAL_PARAMETER;
-	}
-
 	/* Check that signature type is PKCS7 */
 	if (!is_pkcs7_sig_format(var->data))
 		return OPAL_PARAMETER;
