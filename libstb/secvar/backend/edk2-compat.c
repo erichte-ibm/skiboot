@@ -102,7 +102,11 @@ static int edk2_compat_process(void)
         /* Check if physical presence is asserted */
         if (is_physical_presence_asserted()) {
                 prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
-                reset_keystore();
+                rc = reset_keystore();
+		if (rc) {
+			clear_bank_list(&update_bank);
+			return rc;
+		}
                 setup_mode = true;
         }
 
@@ -110,7 +114,11 @@ static int edk2_compat_process(void)
 	if (!setup_mode) {
 		rc = verify_hw_key_hash();
 		if (rc != OPAL_SUCCESS) {
-			reset_keystore();
+			rc = reset_keystore();
+			if (rc) {
+				clear_bank_list(&update_bank);
+				return rc;
+			}
 			setup_mode = true;
 		}
 	}
