@@ -172,10 +172,16 @@ static int edk2_compat_process(void)
 
 static int edk2_compat_post_process(void)
 {
+	struct secvar_node *hwvar;
 	printf("setup mode is %d\n", setup_mode);
 	if (!setup_mode) {
 		secvar_set_secure_mode();
 		prlog(PR_INFO, "Enforcing OS secure mode\n");
+		hwvar = find_secvar("HWKH", 5, &variable_bank);
+		if (!hwvar)
+			return OPAL_INTERNAL_ERROR;
+		list_del(&hwvar->link);
+		dealloc_secvar(hwvar);
 	}
 
 	return OPAL_SUCCESS;
