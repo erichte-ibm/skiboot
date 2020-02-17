@@ -5,8 +5,13 @@
 #endif
 
 #include <opal.h>
-#include <device.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <ccan/endian/endian.h>
 #include <mbedtls/error.h>
+#include <device.h>
 #include "libstb/crypto/pkcs7/pkcs7.h"
 #include "edk2.h"
 #include "../secvar.h"

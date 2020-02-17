@@ -5,8 +5,15 @@
 #endif
 
 #include <opal.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <ccan/endian/endian.h>
+#include <mbedtls/error.h>
+#include "libstb/crypto/pkcs7/pkcs7.h"
+#include "edk2.h"
 #include "../secvar.h"
-#include "../secvar_devtree.h"
 #include "edk2-compat-process.h"
 #include "edk2-compat-reset.h"
 
