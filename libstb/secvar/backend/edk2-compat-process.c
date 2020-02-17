@@ -51,7 +51,8 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
         return 0;
 }
 
-char *utf8_to_ucs2(const char *key, size_t keylen)
+/* Converts utf8 string to ucs2 */
+static char *utf8_to_ucs2(const char *key, size_t keylen)
 {
 	int i;
 	char *str;
@@ -68,7 +69,8 @@ char *utf8_to_ucs2(const char *key, size_t keylen)
 	return str;
 }
 
-void get_key_authority(const char *ret[3], const char *key)
+/* Returns the authority that can sign the given key update */
+static void get_key_authority(const char *ret[3], const char *key)
 {
 	int i = 0;
 
@@ -83,7 +85,8 @@ void get_key_authority(const char *ret[3], const char *key)
 	ret[i] = NULL;
 }
 
-int get_esl_signature_list_size(char *buf, size_t buflen)
+/* Returns the size of the complete ESL. */
+static int get_esl_signature_list_size(char *buf, size_t buflen)
 {
 	EFI_SIGNATURE_LIST list;
 
@@ -98,7 +101,10 @@ int get_esl_signature_list_size(char *buf, size_t buflen)
 	return le32_to_cpu(list.SignatureListSize);
 }
 
-int get_esl_cert(char *buf, size_t buflen, char **cert)
+/* Copies the certificate from the ESL into cert buffer and returns the size
+ * of the certificate
+ */
+static int get_esl_cert(char *buf, size_t buflen, char **cert)
 {
 	size_t sig_data_offset;
 	size_t size;
@@ -140,7 +146,10 @@ int get_esl_cert(char *buf, size_t buflen, char **cert)
 	return size;
 }
 
-int get_pkcs7_len(struct efi_variable_authentication_2 *auth)
+/* Extracts size of the PKCS7 signed data embedded in the
+ * struct Authentication 2 Descriptor Header.
+ */
+static int get_pkcs7_len(struct efi_variable_authentication_2 *auth)
 {
 	uint32_t dw_length;
 	size_t size;
@@ -273,7 +282,8 @@ int validate_esl_list(char *key, char *esl, size_t size)
 	return rc;
 }
 
-struct efi_time *get_last_timestamp(const char *key)
+/* Get the timestamp for the last update of the give key */
+static struct efi_time *get_last_timestamp(const char *key)
 {
 	struct secvar_node *node;
 	char *timestamp_list;
@@ -369,7 +379,9 @@ int check_timestamp(char *key, struct efi_time *timestamp)
 	return OPAL_SUCCESS;
 }
 
-int get_pkcs7(struct efi_variable_authentication_2 *auth, mbedtls_pkcs7 **pkcs7)
+/* Extract PKCS7 from the authentication header */
+static int get_pkcs7(struct efi_variable_authentication_2 *auth,
+		     mbedtls_pkcs7 **pkcs7)
 {
 	char *checkpkcs7cert = NULL;
 	int len;
@@ -415,8 +427,10 @@ int get_pkcs7(struct efi_variable_authentication_2 *auth, mbedtls_pkcs7 **pkcs7)
 	return OPAL_SUCCESS;
 }
 
-int verify_signature(struct efi_variable_authentication_2 *auth, char *newcert,
-		     size_t new_data_size, struct secvar *avar)
+/* Verify the PKCS7 signature on the signed data. */
+static int verify_signature(struct efi_variable_authentication_2 *auth,
+			    char *newcert, size_t new_data_size,
+			    struct secvar *avar)
 {
 	mbedtls_pkcs7 *pkcs7 = NULL;
 	mbedtls_x509_crt x509;
@@ -457,7 +471,8 @@ int verify_signature(struct efi_variable_authentication_2 *auth, char *newcert,
 		}
 
 		/* Extract the certificate from the ESL */
-		signing_cert_size = get_esl_cert(avar->data + offset, eslvarsize, &signing_cert);
+		signing_cert_size = get_esl_cert(avar->data + offset,
+						 eslvarsize, &signing_cert);
 		if (signing_cert_size < 0) {
 			rc = signing_cert_size;
 			break;
@@ -527,9 +542,9 @@ int verify_signature(struct efi_variable_authentication_2 *auth, char *newcert,
  * Returns number of bytes in the new buffer, else negative error
  * code.
  */
-int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
-		       char **buffer, size_t *buffer_size,
-		       struct efi_time *timestamp)
+static int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
+			      char **buffer, size_t *buffer_size,
+			      struct efi_time *timestamp)
 {
 	le32 attr = cpu_to_le32(SECVAR_ATTRIBUTES);
 	size_t offset = 0;

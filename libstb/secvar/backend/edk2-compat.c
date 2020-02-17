@@ -99,16 +99,16 @@ static int edk2_compat_process(void)
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
-        /* Check if physical presence is asserted */
-        if (is_physical_presence_asserted()) {
-                prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
-                rc = reset_keystore();
+	/* Check if physical presence is asserted */
+	if (is_physical_presence_asserted()) {
+		prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
+		rc = reset_keystore();
 		if (rc) {
 			clear_bank_list(&update_bank);
 			return rc;
 		}
-                setup_mode = true;
-        }
+		setup_mode = true;
+	}
 
 	/* Check HW-KEY-HASH */
 	if (!setup_mode) {
@@ -173,10 +173,12 @@ static int edk2_compat_process(void)
 static int edk2_compat_post_process(void)
 {
 	struct secvar_node *hwvar;
-	printf("setup mode is %d\n", setup_mode);
 	if (!setup_mode) {
 		secvar_set_secure_mode();
 		prlog(PR_INFO, "Enforcing OS secure mode\n");
+		/* HW KEY HASH is no more needed after this point. It is already
+		 * visible to userspace via device-tree, so exposing via sysfs is
+		 * just a duplication. Remove it from in-memory copy. */
 		hwvar = find_secvar("HWKH", 5, &variable_bank);
 		if (!hwvar)
 			return OPAL_INTERNAL_ERROR;
