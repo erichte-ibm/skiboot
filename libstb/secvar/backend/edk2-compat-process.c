@@ -5,17 +5,11 @@
 #endif
 
 #include <opal.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <ccan/endian/endian.h>
-#include <mbedtls/error.h>
 #include <device.h>
+#include <mbedtls/error.h>
 #include "libstb/crypto/pkcs7/pkcs7.h"
 #include "edk2.h"
 #include "../secvar.h"
-#include "../secvar_devtree.h"
 #include "edk2-compat-process.h"
 
 bool setup_mode;
@@ -193,50 +187,85 @@ int get_auth_descriptor2(void *buf, size_t buflen, char **auth_buffer)
 	return auth_buffer_size;
 }
 
-/* Check that PK has single ESL */
-bool is_single_pk(char *data, size_t data_size)
+int validate_esl_list(char *key, char *esl, size_t size)
 {
-	char *auth_buffer = NULL;
-	char *newesl = NULL;
-	int auth_buffer_size;
-	int new_data_size;
-	int esllistsize;
+	int count = 0;
+	int signing_cert_size;
+	char *signing_cert = NULL;
+	mbedtls_x509_crt x509;
+	char *x509_buf = NULL;
+	int eslvarsize = size;
+	int rc = OPAL_SUCCESS;
+        int eslsize;
+        int offset = 0;
 
-	/* Calculate the size of the authentication buffer */
-	auth_buffer_size = get_auth_descriptor2(data, data_size, &auth_buffer);
-	free(auth_buffer);
-	if (auth_buffer_size <= 0)
-		return false;
+	while (eslvarsize > 0) {
+		prlog(PR_DEBUG, "esl var size size is %d offset is %d\n", eslvarsize, offset);
+		if (eslvarsize < sizeof(EFI_SIGNATURE_LIST))
+			break;
 
-	/* Calculate the size of new ESL data */
-	new_data_size = data_size - auth_buffer_size;
-	if (!new_data_size)
-		return true;
+		/* Calculate the size of the ESL */
+		eslsize = get_esl_signature_list_size(esl, eslvarsize);
+		/* If could not extract the size */
+		if (eslsize <= 0) {
+			rc = OPAL_PARAMETER;
+			break;
+		}
 
-	newesl = zalloc(new_data_size);
-	/* If there is an error in allocation, we cannot say anything about
-	 * the data so do not validate it
-	 */
-	if (!newesl)
-		return false;
+		/* Extract the certificate from the ESL */
+		signing_cert_size = get_esl_cert(esl, eslvarsize, &signing_cert);
+		if (signing_cert_size < 0) {
+			rc = signing_cert_size;
+			break;
+		}
 
-	memcpy(newesl, data + auth_buffer_size, new_data_size);
+		mbedtls_x509_crt_init(&x509);
+		rc = mbedtls_x509_crt_parse(&x509, signing_cert, signing_cert_size);
 
-	esllistsize = get_esl_signature_list_size(newesl, new_data_size);
-	free(newesl);
-	/* If there is failure in parsing the new data, we cannot say anything
-	 * about the data so do not validate it
-	 */
-	if (esllistsize <= 0)
-		return false;
+		/* If failure in parsing the certificate, exit */
+		if(rc) {
+			prlog(PR_INFO, "X509 certificate parsing failed %04x\n", rc);
+			rc = OPAL_PARAMETER;
+			break;
+		}
 
-	/* Here check if the new data is actually bigger than a single
-	 * certificate
-	 */
-	if (new_data_size > esllistsize)
-		return false;
+		x509_buf = zalloc(CERT_BUFFER_SIZE);
+		rc = mbedtls_x509_crt_info(x509_buf, CERT_BUFFER_SIZE, "CRT:", &x509);
+		prlog(PR_INFO, "%s ", x509_buf);
 
-	return true;
+		/* If failure in reading the certificate, exit */
+		if (rc < 0) {
+			prlog(PR_INFO, "X509 certificate parsing failed %04x\n", rc);
+			rc = OPAL_PARAMETER;
+			free(x509_buf);
+			break;
+		}
+		rc = 0;
+
+		free(x509_buf);
+		x509_buf = NULL;
+		count++;
+
+		/* Look for the next ESL */
+		offset = offset + eslsize;
+		eslvarsize = eslvarsize - eslsize;
+		mbedtls_x509_crt_free(&x509);
+		free(signing_cert);
+		/* Since we are going to allocate again in the next iteration */
+		signing_cert = NULL;
+	}
+
+	if (rc == OPAL_SUCCESS) {
+		if (key_equals(key, "PK") && (count > 1)) {
+			prlog(PR_ERR, "PK can only be one\n");
+			rc = OPAL_PARAMETER;
+		} else {
+			rc = count;
+		}
+	}
+
+	prlog(PR_INFO, "Total ESLs are %d\n", rc);
+	return rc;
 }
 
 struct efi_time *get_last_timestamp(const char *key)
@@ -432,23 +461,26 @@ int verify_signature(struct efi_variable_authentication_2 *auth, char *newcert,
 		mbedtls_x509_crt_init(&x509);
 		rc = mbedtls_x509_crt_parse(&x509, signing_cert, signing_cert_size);
 
-		/* If failure in parsing the certificate, try next */
+		/* This should not happen, unless something corrupted in PNOR */
 		if(rc) {
 			prlog(PR_INFO, "X509 certificate parsing failed %04x\n", rc);
-			goto next;
+			rc = OPAL_INTERNAL_ERROR;
+			break;
 		}
 
 		x509_buf = zalloc(CERT_BUFFER_SIZE);
 		rc = mbedtls_x509_crt_info(x509_buf, CERT_BUFFER_SIZE, "CRT:", &x509);
 
-		/* If failure in reading the certificate, try next */
+		/* This should not happen, unless something corrupted in PNOR */
 		if (rc < 0) {
 			free(x509_buf);
-			goto next;
+			rc = OPAL_INTERNAL_ERROR;
+			break;
 		}
 
 		prlog(PR_INFO, "%s \n", x509_buf);
 		free(x509_buf);
+		x509_buf = NULL;
 
 		/* Verify the signature */
 		rc = mbedtls_pkcs7_signed_data_verify(pkcs7, &x509, newcert,
@@ -467,7 +499,6 @@ int verify_signature(struct efi_variable_authentication_2 *auth, char *newcert,
 				rc, errbuf);
 		free(errbuf);
 
-next:
 		/* Look for the next ESL */
 		offset = offset + eslsize;
 		eslvarsize = eslvarsize - eslsize;
@@ -595,6 +626,11 @@ int process_update(struct secvar_node *update, char **newesl,
 		goto out;
 	}
 	memcpy(*newesl, update->var->data + auth_buffer_size, *new_data_size);
+
+	/* Validate the new ESL is in right format */
+	rc = validate_esl_list(update->var->key, *newesl, *new_data_size);
+	if (rc < 0)
+		goto out;
 
 	if (setup_mode) {
 		rc = OPAL_SUCCESS;

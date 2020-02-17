@@ -5,17 +5,10 @@
 #endif
 
 #include <opal.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <ccan/endian/endian.h>
-#include <mbedtls/error.h>
-#include "libstb/crypto/pkcs7/pkcs7.h"
-#include "edk2.h"
 #include "../secvar.h"
+#include "../secvar_devtree.h"
 #include "edk2-compat-process.h"
-#include "edk2-compat-clear-keys.h"
+#include "edk2-compat-reset.h"
 
 /*
  * Initializes supported variables as empty if not loaded from
@@ -102,16 +95,25 @@ static int edk2_compat_process(void)
         /* Check if physical presence is asserted */
         if (is_physical_presence_asserted()) {
                 prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
-                clear_all_os_keys();
+                rc = reset_keystore();
+		if (rc) {
+			clear_bank_list(&update_bank);
+			return rc;
+		}
                 setup_mode = true;
         }
 
 	/* Check HW-KEY-HASH */
 	if (!setup_mode) {
 		rc = verify_hw_key_hash();
-		if (rc != OPAL_SUCCESS)
-			clear_all_os_keys();
-		setup_mode = true;
+		if (rc != OPAL_SUCCESS) {
+			rc = reset_keystore();
+			if (rc) {
+				clear_bank_list(&update_bank);
+				return rc;
+			}
+			setup_mode = true;
+		}
 	}
 
 	/* Loop through each command in the update bank.
@@ -163,10 +165,16 @@ static int edk2_compat_process(void)
 
 static int edk2_compat_post_process(void)
 {
+	struct secvar_node *hwvar;
 	printf("setup mode is %d\n", setup_mode);
 	if (!setup_mode) {
 		secvar_set_secure_mode();
 		prlog(PR_INFO, "Enforcing OS secure mode\n");
+		hwvar = find_secvar("HWKH", 5, &variable_bank);
+		if (!hwvar)
+			return OPAL_INTERNAL_ERROR;
+		list_del(&hwvar->link);
+		dealloc_secvar(hwvar);
 	}
 
 	return OPAL_SUCCESS;
@@ -182,13 +190,6 @@ static int edk2_compat_validate(struct secvar *var)
 			&& !key_equals(var->key, "db")
 			&& !key_equals(var->key, "dbx"))
 		return OPAL_PARAMETER;
-
-	/* PK update should contain single ESL. */
-	if (key_equals(var->key, "PK")) {
-		prlog(PR_DEBUG, "check if single PK\n");
-		if (!is_single_pk(var->data, var->data_size))
-			return OPAL_PARAMETER;
-	}
 
 	/* Check that signature type is PKCS7 */
 	if (!is_pkcs7_sig_format(var->data))
