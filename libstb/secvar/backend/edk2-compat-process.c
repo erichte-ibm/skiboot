@@ -561,6 +561,8 @@ static int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
 	else if (key_equals(key, "db")
 	    || key_equals(key, "dbx"))
 		guid = EFI_IMAGE_SECURITY_DATABASE_GUID;
+	else
+		return OPAL_INTERNAL_ERROR;
 
 	/* Convert utf8 name to ucs2 width */
 	varlen = strlen(key) * 2;
