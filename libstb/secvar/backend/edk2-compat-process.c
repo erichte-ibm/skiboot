@@ -416,15 +416,17 @@ static int get_pkcs7(struct efi_variable_authentication_2 *auth,
 
 	rc = mbedtls_x509_crt_info(checkpkcs7cert, CERT_BUFFER_SIZE, "CRT:",
 			&((*pkcs7)->signed_data.certs));
-	if (rc)
+	if (rc < 0) {
 		rc = OPAL_PARAMETER;
-	else
+	} else {
+		rc = OPAL_SUCCESS;
 		prlog(PR_DEBUG, "%s \n", checkpkcs7cert);
+	}
 
 	free(checkpkcs7cert);
 	mbedtls_pkcs7_free(*pkcs7);
 
-	return OPAL_SUCCESS;
+	return rc;
 }
 
 /* Verify the PKCS7 signature on the signed data. */
