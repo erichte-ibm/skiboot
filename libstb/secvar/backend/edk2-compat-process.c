@@ -22,33 +22,33 @@ bool setup_mode;
 int update_variable_in_bank(struct secvar *secvar, const char *data,
 			    uint64_t dsize)
 {
-        struct secvar_node *node;
+	struct secvar_node *node;
 
-        node = find_secvar(secvar->key, secvar->key_len, &variable_bank);
-        if (!node)
-                return OPAL_EMPTY;
+	node = find_secvar(secvar->key, secvar->key_len, &variable_bank);
+	if (!node)
+		return OPAL_EMPTY;
 
         /* Reallocate the data memory, if there is change in data size */
-        if (node->size < dsize)
-                if (realloc_secvar(node, dsize))
-                        return OPAL_NO_MEM;
+	if (node->size < dsize)
+		if (realloc_secvar(node, dsize))
+			return OPAL_NO_MEM;
 
-        if (dsize && data)
-                memcpy(node->var->data, data, dsize);
-        node->var->data_size = dsize;
+	if (dsize && data)
+		memcpy(node->var->data, data, dsize);
+	node->var->data_size = dsize;
 
         /* Clear the volatile bit only if updated with positive data size */
-        if (dsize)
-                node->flags &= ~SECVAR_FLAG_VOLATILE;
-        else
-                node->flags |= SECVAR_FLAG_VOLATILE;
+	if (dsize)
+		node->flags &= ~SECVAR_FLAG_VOLATILE;
+	else
+		node->flags |= SECVAR_FLAG_VOLATILE;
 
         /* Is it required to be set everytime ? */
-        if ((!strncmp(secvar->key, "PK", 3))
+	if ((!strncmp(secvar->key, "PK", 3))
 	     || (!strncmp(secvar->key, "HWKH", 5)))
-                node->flags |= SECVAR_FLAG_PRIORITY;
+		node->flags |= SECVAR_FLAG_PRIORITY;
 
-        return 0;
+	return 0;
 }
 
 /* Converts utf8 string to ucs2 */
@@ -210,8 +210,8 @@ int validate_esl_list(char *key, char *esl, size_t size)
 	char *x509_buf = NULL;
 	int eslvarsize = size;
 	int rc = OPAL_SUCCESS;
-        int eslsize;
-        int offset = 0;
+	int eslsize;
+	int offset = 0;
 
 	while (eslvarsize > 0) {
 		prlog(PR_DEBUG, "esl var size size is %d offset is %d\n", eslvarsize, offset);
@@ -602,14 +602,14 @@ int process_update(struct secvar_node *update, char **newesl,
 		   int *new_data_size, struct efi_time *timestamp)
 {
 	struct efi_variable_authentication_2 *auth = NULL;
-        char *auth_buffer = NULL;
-        int auth_buffer_size = 0;
-        const char *key_authority[3];
-        char *tbhbuffer = NULL;
-        size_t tbhbuffersize = 0;
-        struct secvar_node *anode = NULL;
-        int rc = 0;
-        int i;
+	char *auth_buffer = NULL;
+	int auth_buffer_size = 0;
+	const char *key_authority[3];
+	char *tbhbuffer = NULL;
+	size_t tbhbuffersize = 0;
+	struct secvar_node *anode = NULL;
+	int rc = 0;
+	int i;
 
 	auth_buffer_size = get_auth_descriptor2(update->var->data,
 						update->var->data_size,
