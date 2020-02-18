@@ -5,7 +5,7 @@
 #define __SECVAR_EDK2_COMPAT_CLEAR_KEYS__
 
 #ifndef pr_fmt
-#define pr_fmt(fmt) "BACKEND_COMMON : " fmt
+#define pr_fmt(fmt) "EDK2_COMPAT: " fmt
 #endif
 
 #include <opal.h>
