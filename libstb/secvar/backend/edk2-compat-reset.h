@@ -8,8 +8,6 @@
 #define pr_fmt(fmt) "EDK2_COMPAT: " fmt
 #endif
 
-#include <opal.h>
-
 /* clear all os keys and the timestamp*/
 int reset_keystore(void);
 
