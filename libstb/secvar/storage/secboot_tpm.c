@@ -204,6 +204,8 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 		goto out;
 
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
+	if (rc)
+		goto out;
 
 	/* Calculate the bank hash, and write to TPM NV */
 	rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
