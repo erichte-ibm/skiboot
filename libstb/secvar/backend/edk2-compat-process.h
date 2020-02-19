@@ -8,19 +8,7 @@
 #define pr_fmt(fmt) "EDK2_COMPAT: " fmt
 #endif
 
-#include <opal.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
 #include <stdint.h>
-#include <ccan/endian/endian.h>
-#include <mbedtls/error.h>
-#include <device.h>
-#include "libstb/crypto/pkcs7/pkcs7.h"
-#include "edk2.h"
-#include "opal-api.h"
-#include "../secvar.h"
-#include "../secvar_devtree.h"
 
 #define CERT_BUFFER_SIZE        2048
 #define MBEDTLS_ERR_BUFFER_SIZE 1024

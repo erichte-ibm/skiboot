@@ -14,6 +14,7 @@
 #include "libstb/crypto/pkcs7/pkcs7.h"
 #include "edk2.h"
 #include "../secvar.h"
+#include "../secvar_devtree.h"
 #include "edk2-compat-process.h"
 #include "edk2-compat-reset.h"
 
