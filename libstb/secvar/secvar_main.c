@@ -110,6 +110,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 fail:
 	secvar_set_status("fail");
 out:
+	secvar_storage.lock();
 	prerror("secvar failed to initialize, rc = %04x\n", rc);
 	return rc;
 }
