@@ -83,7 +83,12 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		rc = secvar_storage.write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 		if (rc)
 			goto out;
-
+	}
+	/* Write (and probably clear) the update bank if .process() actually detected
+	 * and handled updates in the update bank. Unlike above, this includes error
+	 * cases, where the backend should probably be clearing the bank.
+	 */
+	if (rc != OPAL_EMPTY) {
 		rc = secvar_storage.write_bank(&update_bank, SECVAR_UPDATE_BANK);
 		if (rc)
 			goto out;
