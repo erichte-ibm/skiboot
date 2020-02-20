@@ -123,6 +123,11 @@ static int edk2_compat_process(void)
 		}
 	}
 
+	/* Return early if we have no updates to process */
+	if (list_empty(&update_bank)) {
+		return OPAL_EMPTY;
+	}
+
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
 	 * It should also clear the update bank.
