@@ -107,10 +107,23 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	prlog(PR_INFO, "secvar initialized successfully\n");
 
 	return OPAL_SUCCESS;
+
 fail:
+	/* Early failure, base secvar support failed to initialize */
 	secvar_set_status("fail");
-out:
 	secvar_storage.lock();
+	secvar_set_secure_mode();
+
+	prerror("secvar failed to initialize, rc = %04x\n", rc);
+	return rc;
+
+out:
+	/* Soft-failure, enforce secure boot in bootloader for debug/recovery */
+	clear_bank_list(&variable_bank);
+	clear_bank_list(&update_bank);
+	secvar_storage.lock();
+	secvar_set_secure_mode();
+
 	prerror("secvar failed to initialize, rc = %04x\n", rc);
 	return rc;
 }
