@@ -1,3 +1,4 @@
+#define TPM_SKIBOOT
 #include "secvar_common_test.c"
 #include "../storage/secboot_tpm.c"
 #include "../storage/fakenv_ops.c"
