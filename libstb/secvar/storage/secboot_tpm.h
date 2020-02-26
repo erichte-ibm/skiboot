@@ -1,6 +1,8 @@
 #ifndef _SECBOOT_TPM_H_
 #define _SECBOOT_TPM_H_
 
+#include <ibmtss/tss.h>
+
 // TODO: Determine reasonable values for these, or have platform set it?
 #define SECBOOT_VARIABLE_BANK_SIZE	32000
 #define SECBOOT_UPDATE_BANK_SIZE	32000
@@ -41,10 +43,10 @@ struct tpmnv_control {
 } __attribute__((packed));
 
 struct tpmnv_ops_s {
-	int (*read)(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off);
-	int (*write)(uint32_t nvIndex, void *buf, size_t bufsize, uint64_t off);
-	int (*writelock)(uint32_t nvIndex);
-	int (*definespace)(uint32_t, const char, const char, uint16_t);
+	int (*read)(TPMI_RH_NV_INDEX nv, void*, size_t, uint16_t);
+	int (*write)(TPMI_RH_NV_INDEX nv, void*, size_t, uint16_t);
+	int (*writelock)(TPMI_RH_NV_INDEX nv);
+	int (*definespace)(TPMI_RH_NV_INDEX nv, uint16_t);
 };
 
 #endif

@@ -2,9 +2,9 @@
 #include "secboot_tpm.h"
 
 struct tpmnv_ops_s tpmnv_ops = {
-	.read = TSS_NV_Read,
-	.write = TSS_NV_Write,
-	.writelock = TSS_NV_WriteLock,
-	.definespace = TSS_NV_Define_Space
+	.read = tss_nv_read,
+	.write = tss_nv_write,
+	.writelock = tss_nv_write_lock,
+	.definespace = tss_nv_define_space
 };
 
