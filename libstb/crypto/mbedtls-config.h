@@ -93,7 +93,7 @@
 #define MBEDTLS_HMAC_DRBG_C
 
 /* Miscellaneous options and fixes*/
-//#define MBEDTLS_AES_ROM_TABLES
+#define MBEDTLS_AES_ROM_TABLES
 #define MBEDTLS_NO_UDBL_DIVISION	// Disabled due to unsupported operation
 
 #endif /* MBEDTLS_CONFIG_H */
