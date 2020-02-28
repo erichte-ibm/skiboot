@@ -24,7 +24,7 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 {
 	struct secvar_node *node;
 
-	node = find_secvar(secvar->key, secvar->key_len, &variable_bank);
+	node = find_secvar(secvar->key, secvar->key_len, &staging_bank);
 	if (!node)
 		return OPAL_EMPTY;
 

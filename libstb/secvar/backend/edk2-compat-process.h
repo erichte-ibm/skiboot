@@ -29,6 +29,7 @@
 #define key_equals(a,b) (!strncmp(a, b, EDK2_MAX_KEY_LEN))
 
 extern bool setup_mode;
+extern struct list_head staging_bank;
 
 /* Update the variable in the variable bank with the new value. */
 int update_variable_in_bank(struct secvar *secvar, const char *data,

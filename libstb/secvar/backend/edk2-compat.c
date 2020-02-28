@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <skiboot.h>
 #include <ccan/endian/endian.h>
 #include <mbedtls/error.h>
 #include "libstb/crypto/pkcs7/pkcs7.h"
@@ -16,6 +17,8 @@
 #include "../secvar.h"
 #include "edk2-compat-process.h"
 #include "edk2-compat-reset.h"
+
+struct list_head staging_bank;
 
 /*
  * Initializes supported variables as empty if not loaded from
@@ -99,15 +102,18 @@ static int edk2_compat_process(void)
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
+	list_head_init(&staging_bank);
+        list_for_each(&variable_bank, node, link)
+		list_add_tail(&staging_bank, &node->link);
+
 	/* Check if physical presence is asserted */
 	if (is_physical_presence_asserted()) {
 		prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
 		rc = reset_keystore();
-		if (rc) {
-			clear_bank_list(&update_bank);
-			return rc;
-		}
+		if (rc)
+			goto cleanup;
 		setup_mode = true;
+		goto cleanup;
 	}
 
 	/* Check HW-KEY-HASH */
@@ -115,11 +121,10 @@ static int edk2_compat_process(void)
 		rc = verify_hw_key_hash();
 		if (rc != OPAL_SUCCESS) {
 			rc = reset_keystore();
-			if (rc) {
-				clear_bank_list(&update_bank);
-				return rc;
-			}
+			if (rc)
+				goto cleanup;
 			setup_mode = true;
+			goto cleanup;
 		}
 	}
 
@@ -132,6 +137,7 @@ static int edk2_compat_process(void)
 	 * If any command fails, it just loops out of the update bank.
 	 * It should also clear the update bank.
 	 */
+
 	list_for_each(&update_bank, node, link) {
 
 		/* Submitted data is auth_2 descriptor + new ESL data
@@ -166,6 +172,12 @@ static int edk2_compat_process(void)
 				setup_mode = false;
 			prlog(PR_DEBUG, "setup mode is %d\n", setup_mode);
 		}
+	}
+
+cleanup:
+	if (rc == 0) {
+		clear_bank_list(&variable_bank);
+		variable_bank = staging_bank;
 	}
 
 	/* For any failure in processing update queue, we clear the update bank
