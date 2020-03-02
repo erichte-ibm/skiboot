@@ -60,10 +60,12 @@ static int tpmnv_format(void)
 	tpmnv_control_image->header.version = SECBOOT_VERSION;
 
 	/* Counts as first write to the TPM NV, as required by fresh NV indices */
+	printf("Now writing vars index in tpmnv format\n");
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
 	if (rc)
 		return rc;
 
+	printf("Now writing control index in tpmnv format\n");
 	return tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
 }
 
@@ -85,6 +87,7 @@ static int secboot_format(void)
 	if (rc)
 		return rc;
 
+	printf("Now writing in secboot format\n");
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv_control, bank_hash[0]));
 	if (rc)
 		return rc;
@@ -368,24 +371,26 @@ static int secboot_tpm_init_tpmnv(int *tpm_first_init)
 	/* Read from each TPM NV index, define it if it doesn't exist */
 	/* Defining the index invokes a full reformat */
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
-	if (rc == TPM_RC_NV_UNINITIALIZED) {
+	printf("error rc after reading %06x INDEX is %04x\n", SECBOOT_TPMNV_VARS_INDEX, rc);
+	if ((rc & 0xff) == TPM_RC_HANDLE) {
+		printf("inside uninitialized\n");
 		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
 		if (rc)
 			return rc;
 
 		*tpm_first_init = 1;
-		goto out;
 	} else if (rc)
 		return rc;
 
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
-	if (rc == TPM_RC_NV_UNINITIALIZED) {
-		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, sizeof(struct tpmnv_control));
+	printf("error rc after reading %06x INDEX is %04x\n", SECBOOT_TPMNV_CONTROL_INDEX, rc);
+	if ((rc & 0xff) == TPM_RC_HANDLE) {
+		printf("inside uninitialized\n");
+		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_CONTROL_INDEX, sizeof(struct tpmnv_control));
 		if (rc)
 			return rc;
 
 		*tpm_first_init = 1;
-		goto out;
 	} else if (rc)
 		return rc;
 
