@@ -414,12 +414,6 @@ static int secboot_tpm_store_init(void)
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
-	/* Allocate and load data from the TPM NV indices,
-	 * define them if they are not already. */
-	rc = secboot_tpm_init_tpmnv(&tpm_first_init);
-	if (rc)
-		goto error;
-
 	rc = platform.secboot_info(&secboot_size);
 	if (rc) {
 		prlog(PR_ERR, "error %d retrieving keystore info\n", rc);
@@ -446,27 +440,57 @@ static int secboot_tpm_store_init(void)
 		goto error;
 	}
 
-	/* TPM needs to be formatted, also reformat SECBOOT with it */
-	if (tpm_first_init) {
-		prlog(PR_INFO, "Initializing and formatting TPMNV space and SECBOOT partition\n");
-		rc = tpmnv_format();
+	/* Allocate and load data from the TPM NV indices,
+	 * define them if they are not already. */
+	tpmnv_vars_image = zalloc(tpmnv_vars_size);
+	if (!tpmnv_vars_image)
+		return OPAL_NO_MEM;
+	tpmnv_control_image = zalloc(sizeof(struct tpmnv_control));
+	if (!tpmnv_control_image)
+		return OPAL_NO_MEM;
+
+	// TODO use getcap
+	#define control_defined 0
+	#define vars_defined 0
+	if (!vars_defined) {
+		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
 		if (rc)
 			goto error;
+		// format
+	}
+	if (!control_defined) {
+		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_CONTROL_INDEX, sizeof(struct tpmnv_control));
+		if (rc)
+			goto error;
+		// format
+	}
 
+	/* Determine if we need to reformat the secboot PNOR partition */
+	if (!vars_defined || !control_defined ||
+	    secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
 		rc = secboot_format();
 		if (rc)
 			goto error;
-	}
-	/* Determine if we need to reformat just secboot*/
-	else if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
-		prlog(PR_INFO, "SECBOOT partiton was empty or altered, formatting\n");
-		rc = secboot_format();
-		if (rc) {
-			prlog(PR_ERR, "Failed to format secboot!\n");
-			goto error;
-		}
+		/* skip over reading from TPMNV, we just formatted them */
+		goto done;
 	}
 
+	/* TPMNV indices exist and weren't just formatted, so read them in */
+	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
+	if (rc)
+		goto error;
+
+	rc = tpmnv_ops.read(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
+	if (rc)
+		goto error;
+
+	if (tpmnv_vars_image->header.magic_number != SECBOOT_MAGIC_NUMBER ||
+	    tpmnv_control_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
+		prlog(PR_ERR, "CRITICAL: TPMNV indices defined, but contain bad data. Assert physical presence to clear\n");
+		goto error;
+	}
+
+done:
 	return OPAL_SUCCESS;
 
 error:
