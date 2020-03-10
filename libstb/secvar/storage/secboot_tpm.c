@@ -368,7 +368,7 @@ static int secboot_tpm_init_tpmnv(int *tpm_first_init)
 	/* Read from each TPM NV index, define it if it doesn't exist */
 	/* Defining the index invokes a full reformat */
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
-	if (rc == TPM_RC_NV_UNINITIALIZED) {
+	if ((rc & 0xff) == TPM_RC_HANDLE) {
 		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
 		if (rc)
 			return rc;
@@ -379,7 +379,7 @@ static int secboot_tpm_init_tpmnv(int *tpm_first_init)
 		return rc;
 
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
-	if (rc == TPM_RC_NV_UNINITIALIZED) {
+	if ((rc & 0xff) == TPM_RC_HANDLE) {
 		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, sizeof(struct tpmnv_control));
 		if (rc)
 			return rc;
