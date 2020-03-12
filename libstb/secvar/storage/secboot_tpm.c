@@ -349,62 +349,11 @@ static int secboot_tpm_load_bank(struct list_head *bank, int section)
 	return OPAL_HARDWARE;
 }
 
-static int secboot_tpm_init_tpmnv(int *tpm_first_init)
-{
-	int rc;
-
-	if (!tpm_first_init)
-		return OPAL_INTERNAL_ERROR;
-
-	tpmnv_vars_image = zalloc(tpmnv_vars_size);
-	if (!tpmnv_vars_image)
-		return OPAL_NO_MEM;
-	tpmnv_control_image = zalloc(sizeof(struct tpmnv_control));
-	if (!tpmnv_control_image)
-		return OPAL_NO_MEM;
-
-	// TODO use getcap
-
-	/* Read from each TPM NV index, define it if it doesn't exist */
-	/* Defining the index invokes a full reformat */
-	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
-	if ((rc & 0xff) == TPM_RC_HANDLE) {
-		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
-		if (rc)
-			return rc;
-
-		*tpm_first_init = 1;
-		goto out;
-	} else if (rc)
-		return rc;
-
-	rc = tpmnv_ops.read(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
-	if ((rc & 0xff) == TPM_RC_HANDLE) {
-		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, sizeof(struct tpmnv_control));
-		if (rc)
-			return rc;
-
-		*tpm_first_init = 1;
-		goto out;
-	} else if (rc)
-		return rc;
-
-	/* Trigger a reformat if for some reason the NV index was cleared */
-	if (tpmnv_vars_image->header.magic_number != SECBOOT_MAGIC_NUMBER)
-		*tpm_first_init = 1;
-	if (tpmnv_control_image->header.magic_number != SECBOOT_MAGIC_NUMBER)
-		*tpm_first_init = 1;
-
-out:
-	return OPAL_SUCCESS;
-}
-
 
 static int secboot_tpm_store_init(void)
 {
 	int rc;
 	unsigned secboot_size;
-	int tpm_first_init = 0;
 
 	if (secboot_image)
 		return OPAL_SUCCESS;
@@ -414,6 +363,9 @@ static int secboot_tpm_store_init(void)
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
+	// TODO: check physical presence here
+
+	/* Initialize SECBOOT first, we may need to format this later */
 	rc = platform.secboot_info(&secboot_size);
 	if (rc) {
 		prlog(PR_ERR, "error %d retrieving keystore info\n", rc);
@@ -450,23 +402,30 @@ static int secboot_tpm_store_init(void)
 		return OPAL_NO_MEM;
 
 	// TODO use getcap
-	#define control_defined 0
-	#define vars_defined 0
-	if (!vars_defined) {
+	#define control_defined 1
+	#define vars_defined 1
+	// TODO check sizes of each index
+	/* Determine if we need to define the indices. These should BOTH be false or true */
+	if (!vars_defined && !control_defined) {
 		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
 		if (rc)
 			goto error;
-		// format
-	}
-	if (!control_defined) {
+
 		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_CONTROL_INDEX, sizeof(struct tpmnv_control));
 		if (rc)
 			goto error;
-		// format
+
+		rc = tpmnv_format();
+		if (rc)
+			goto error;
+	} else if (vars_defined ^ control_defined) {
+		/* This should never happen. Both indices should be defined at the same
+		 * time. Otherwise something seriously went wrong. P A N I C. */
+		// TODO: panic
 	}
 
 	/* Determine if we need to reformat the secboot PNOR partition */
-	if (!vars_defined || !control_defined ||
+	if (!vars_defined || !control_defined || // TODO: we technically don't have to check both here
 	    secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
 		rc = secboot_format();
 		if (rc)
