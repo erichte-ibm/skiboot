@@ -134,9 +134,9 @@ static int edk2_compat_process(void)
 	 * Swap them at then end if processing succeeds */
 	list_head_init(&staging_bank);
 	list_for_each(&variable_bank, node, link) {
-		tmp = alloc_secvar(node->size);
+		tmp = alloc_secvar(node->var->data_size);
 		tmp->flags = node->flags;
-		memcpy(tmp->var, node->var, tmp->size);
+		memcpy(tmp->var, node->var, tmp->size + sizeof(struct secvar));
 		list_add_tail(&staging_bank, &tmp->link);
 	}
 
