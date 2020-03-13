@@ -300,7 +300,8 @@ int tss_nv_define_space(TPMI_RH_NV_INDEX nv_index, uint16_t data_size)
 	 * */
 	nv_attributes.val = (TPMA_NVA_PPWRITE | TPMA_NVA_ORDINARY |
 			     TPMA_NVA_WRITE_STCLEAR | TPMA_NVA_AUTHREAD |
-			     TPMA_NVA_AUTHWRITE | TPMA_NVA_PLATFORMCREATE);
+			     TPMA_NVA_AUTHWRITE | TPMA_NVA_PLATFORMCREATE
+			     | TPMA_NVA_NO_DA);
 	in->publicInfo.nvPublic.attributes = nv_attributes;
 
 	rc = TSS_Execute(context,
