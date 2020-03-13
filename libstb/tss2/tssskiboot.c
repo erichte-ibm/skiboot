@@ -619,3 +619,69 @@ cleanup:
 	free(key_passwd);
 	return rc;
 }
+
+/*
+ * @brief returns a list of defined NV indices
+ * @param pcr_handle		The PCR to be extended
+ * @param alg_hashes		A pointer to an array of hash algorithms, each
+ * 				one used to extend its respective PCR bank.
+ * @param alg_hash_count	The length of alg hashes array
+ */
+int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
+{
+	TSS_CONTEXT *context = NULL;
+	GetCapability_In *in = NULL;
+	GetCapability_Out *out = NULL;
+	uint32_t rc = OPAL_SUCCESS;
+	TPML_HANDLE *handles;
+
+	in = zalloc(sizeof(GetCapability_In));
+	if (!in) {
+	        rc = OPAL_NO_MEM;
+		goto cleanup;
+	}
+
+	out = zalloc(sizeof(GetCapability_Out));
+	if (!out) {
+		rc = OPAL_NO_MEM;
+		goto cleanup;
+	}
+
+	rc = TSS_Create(&context);
+	if (rc) {
+		tss_error_trace("tss_check_nv_index", rc);
+		rc = OPAL_NO_MEM;
+		goto cleanup;
+	}
+
+	in->capability = 1;             //TODO use #def constant
+	in->property = 0x01000000;
+	in->propertyCount = 64; // TODO less?
+
+	rc = TSS_Execute(context,
+			 (RESPONSE_PARAMETERS *) out,
+			 (COMMAND_PARAMETERS *) in,
+			 NULL,
+			 TPM_CC_GetCapability,
+			 TPM_RH_NULL, NULL, 0);
+	if (rc) {
+		tss_error_trace("tss_check_nv_index", rc);
+		goto cleanup;
+	}
+
+	handles = (TPML_HANDLE *) &out->capabilityData.data;
+	*count = handles->count;
+	*indices = malloc(*count * sizeof(TPMI_RH_NV_INDEX));
+	if (!indices) {
+		rc = OPAL_NO_MEM;
+		goto cleanup;
+	}
+
+	memcpy(*indices, handles->handle, *count * sizeof(TPMI_RH_NV_INDEX));
+
+cleanup:
+	TSS_Delete(context);
+	free(in);
+	free(out);
+	return rc;
+}
