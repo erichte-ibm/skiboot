@@ -182,12 +182,12 @@ static int edk2_compat_process(void)
 		}
 	}
 
-cleanup:
 	if (rc == 0) {
 		clear_bank_list(&variable_bank);
 		variable_bank = staging_bank;
 	}
 
+cleanup:
 	/* For any failure in processing update queue, we clear the update bank
 	 * and return failure */
 	clear_bank_list(&update_bank);
