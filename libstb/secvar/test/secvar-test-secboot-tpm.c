@@ -30,6 +30,16 @@ static int secboot_info(uint32_t *total_size)
 	return 0;
 }
 
+/* TODO: This will force a full re-init each time, probably should test
+ * the already defined case as well */
+int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
+{
+	*indices = NULL;
+	count = 0;
+
+	return 0;
+}
+
 struct platform platform;
 
 int run_test(void)
