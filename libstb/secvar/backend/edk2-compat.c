@@ -95,6 +95,7 @@ static int edk2_compat_pre_process(void)
 static int edk2_compat_process(void)
 {
 	struct secvar_node *node = NULL;
+	struct secvar_node *tmp = NULL;
 	struct efi_time timestamp;
 	char *newesl = NULL;
 	int neweslsize;
@@ -103,8 +104,12 @@ static int edk2_compat_process(void)
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
 	list_head_init(&staging_bank);
-        list_for_each(&variable_bank, node, link)
-		list_add_tail(&staging_bank, &node->link);
+        list_for_each(&variable_bank, node, link) {
+		tmp = alloc_secvar(node->size);
+		tmp->flags = node->flags;
+		memcpy(tmp->var, node->var, tmp->size);
+		list_add_tail(&staging_bank, &tmp->link);
+	}
 
 	/* Check if physical presence is asserted */
 	if (is_physical_presence_asserted()) {
