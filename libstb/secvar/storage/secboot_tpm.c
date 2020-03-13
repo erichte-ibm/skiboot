@@ -355,6 +355,13 @@ static int secboot_tpm_store_init(void)
 	int rc;
 	unsigned secboot_size;
 
+	// TODO: stash these away via helper function?
+	TPMI_RH_NV_INDEX *indices = NULL;
+	size_t count;
+	bool control_defined = false;
+	bool vars_defined = true;
+	int i;
+
 	if (secboot_image)
 		return OPAL_SUCCESS;
 
@@ -364,6 +371,7 @@ static int secboot_tpm_store_init(void)
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
 	// TODO: check physical presence here
+	// TODO: undefine indices if necessary here
 
 	/* Initialize SECBOOT first, we may need to format this later */
 	rc = platform.secboot_info(&secboot_size);
@@ -401,9 +409,21 @@ static int secboot_tpm_store_init(void)
 	if (!tpmnv_control_image)
 		return OPAL_NO_MEM;
 
-	// TODO use getcap
-	#define control_defined 1
-	#define vars_defined 1
+
+	// TODO: put all this in a helper function?
+	rc = tss_get_defined_nv_indices(&indices, &count);
+	if (rc)
+		goto error;
+
+	for (i = 0; i < count; i++) {
+		if (indices[i] == SECBOOT_TPMNV_VARS_INDEX)
+			vars_defined = true;
+		else if (indices[i] == SECBOOT_TPMNV_CONTROL_INDEX)
+			control_defined = true;
+	}
+
+	free(indices);
+
 	// TODO check sizes of each index
 	/* Determine if we need to define the indices. These should BOTH be false or true */
 	if (!vars_defined && !control_defined) {
@@ -459,6 +479,7 @@ error:
 	tpmnv_vars_image = NULL;
 	free(tpmnv_control_image);
 	tpmnv_control_image = NULL;
+	free(indices);
 
 	return rc;
 }
