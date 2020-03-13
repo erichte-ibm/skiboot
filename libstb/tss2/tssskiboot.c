@@ -636,7 +636,7 @@ int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
 
 	in = zalloc(sizeof(GetCapability_In));
 	if (!in) {
-		rc = OPAL_NO_MEM;
+	        rc = OPAL_NO_MEM;
 		goto cleanup;
 	}
 
@@ -647,15 +647,15 @@ int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
 	}
 
 	rc = TSS_Create(&context);
-	if (!rc) {
+	if (rc) {
 		tss_error_trace("tss_check_nv_index", rc);
 		rc = OPAL_NO_MEM;
 		goto cleanup;
 	}
 
-	in->capability = 1;		//TODO use #def constant
-	in->property = 0;
-	in->propertyCount = 64;	// TODO less?
+	in->capability = 1;             //TODO use #def constant
+	in->property = 0x01000000;
+	in->propertyCount = 64; // TODO less?
 
 	rc = TSS_Execute(context,
 			 (RESPONSE_PARAMETERS *) out,
@@ -668,15 +668,15 @@ int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
 		goto cleanup;
 	}
 
-	handles = (TPML_HANDLE *) &out->capabilityData;
+	handles = (TPML_HANDLE *) &out->capabilityData.data;
 	*count = handles->count;
-	indices = malloc(*count * sizeof(TPMI_RH_NV_INDEX));
+	*indices = malloc(*count * sizeof(TPMI_RH_NV_INDEX));
 	if (!indices) {
 		rc = OPAL_NO_MEM;
 		goto cleanup;
 	}
 
-	memcpy(indices, handles->handle, *count * sizeof(TPMI_RH_NV_INDEX));
+	memcpy(*indices, handles->handle, *count * sizeof(TPMI_RH_NV_INDEX));
 
 cleanup:
 	TSS_Delete(context);
