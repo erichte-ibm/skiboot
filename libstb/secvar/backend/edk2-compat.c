@@ -103,14 +103,6 @@ static int edk2_compat_process(void)
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
-	list_head_init(&staging_bank);
-        list_for_each(&variable_bank, node, link) {
-		tmp = alloc_secvar(node->size);
-		tmp->flags = node->flags;
-		memcpy(tmp->var, node->var, tmp->size);
-		list_add_tail(&staging_bank, &tmp->link);
-	}
-
 	/* Check if physical presence is asserted */
 	if (is_physical_presence_asserted()) {
 		prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
@@ -137,6 +129,17 @@ static int edk2_compat_process(void)
 	if (list_empty(&update_bank)) {
 		return OPAL_EMPTY;
 	}
+
+	/* Perform a deep copy of the active bank to perform changes on.
+	 * Swap them at then end if processing succeeds */
+	list_head_init(&staging_bank);
+	list_for_each(&variable_bank, node, link) {
+		tmp = alloc_secvar(node->size);
+		tmp->flags = node->flags;
+		memcpy(tmp->var, node->var, tmp->size);
+		list_add_tail(&staging_bank, &tmp->link);
+	}
+
 
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
