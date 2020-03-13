@@ -290,7 +290,7 @@ static struct efi_time *get_last_timestamp(const char *key)
 	char *timestamp_list;
 	u8 off;
 
-	node = find_secvar("TS", 3, &variable_bank);
+	node = find_secvar("TS", 3, &staging_bank);
 
 	/* We cannot find timestamp variable, did someone tamper it ? */
 	if (!node)
@@ -677,7 +677,7 @@ int process_update(struct secvar_node *update, char **newesl,
 		prlog(PR_DEBUG, "key is %s\n", update->var->key);
 		prlog(PR_DEBUG, "key authority is %s\n", key_authority[i]);
 		anode = find_secvar(key_authority[i], strlen(key_authority[i]) + 1,
-				    &variable_bank);
+				    &staging_bank);
 		if (!anode || !anode->var->data_size) {
 			i++;
 			continue;
