@@ -357,7 +357,7 @@ static int secboot_tpm_store_init(void)
 
 	// TODO: stash these away via helper function?
 	TPMI_RH_NV_INDEX *indices = NULL;
-	size_t count;
+	size_t count = 0;
 	bool control_defined = false;
 	bool vars_defined = true;
 	int i;
