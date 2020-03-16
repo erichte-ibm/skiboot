@@ -35,7 +35,7 @@ static int secboot_info(uint32_t *total_size)
 int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
 {
 	*indices = NULL;
-	count = 0;
+	*count = 0;
 
 	return 0;
 }
