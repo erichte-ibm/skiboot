@@ -133,19 +133,11 @@ static int edk2_compat_process(void)
 	/* Perform a deep copy of the active bank to perform changes on.
 	 * Swap them at then end if processing succeeds */
 	list_head_init(&staging_bank);
-	list_for_each(&variable_bank, node, link) {
-		tmp = alloc_secvar(node->size);
-		tmp->flags = node->flags;
-		memcpy(tmp->var, node->var, tmp->size);
-		list_add_tail(&staging_bank, &tmp->link);
-	}
-
 
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
 	 * It should also clear the update bank.
 	 */
-
 	list_for_each(&update_bank, node, link) {
 
 		/* Submitted data is auth_2 descriptor + new ESL data
@@ -183,8 +175,18 @@ static int edk2_compat_process(void)
 	}
 
 	if (rc == 0) {
-		clear_bank_list(&variable_bank);
-		variable_bank = staging_bank;
+		list_for_each(&staging_bank, node, link) {
+			tmp = find_secvar(node->var->key, node->var->key_len, &variable_bank);
+			if (tmp->var->data_size < node->var->data_size)
+				if (realloc_secvar(tmp, node->var->data_size))
+					return OPAL_NO_MEM;
+
+			if (node->var->data_size && node->var->data)
+				memcpy(tmp->var->data, node->var->data, node->var->data_size);
+
+			tmp->var->data_size = node->var->data_size;
+			tmp->flags = node->flags;
+        	}
 	}
 
 cleanup:

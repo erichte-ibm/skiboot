@@ -25,8 +25,13 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 	struct secvar_node *node;
 
 	node = find_secvar(secvar->key, secvar->key_len, &staging_bank);
-	if (!node)
-		return OPAL_EMPTY;
+	if (!node) {
+		node = new_secvar(secvar->key, secvar->key_len,data,  dsize, 0);
+		if (!node)
+			return OPAL_NO_MEM;
+		list_add_tail(&staging_bank, &node->link);
+		goto out;
+	}
 
         /* Reallocate the data memory, if there is change in data size */
 	if (node->size < dsize)
@@ -38,6 +43,7 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 	node->var->data_size = dsize;
 
         /* Clear the volatile bit only if updated with positive data size */
+out:
 	if (dsize)
 		node->flags &= ~SECVAR_FLAG_VOLATILE;
 	else
@@ -314,11 +320,43 @@ static struct efi_time *get_last_timestamp(const char *key)
 	return &((struct efi_time *)timestamp_list)[off];
 }
 
+
 int update_timestamp(char *key, struct efi_time *timestamp)
 {
 	struct efi_time *prev;
+	struct secvar_node *tsvar;
+	char *timestamp_list;
+	u8 off;
 
-	prev = get_last_timestamp(key);
+	tsvar = find_secvar("TS", 3, &staging_bank);
+	if (!tsvar) {
+                tsvar = alloc_secvar(sizeof(struct efi_time) * 4);
+                if (!tsvar)
+                        return OPAL_NO_MEM;
+
+                memcpy(tsvar->var->key, "TS", 3);
+                tsvar->var->key_len = 3;
+                tsvar->var->data_size = sizeof(struct efi_time) * 4;
+                memset(tsvar->var->data, 0, tsvar->var->data_size);
+                list_add_tail(&staging_bank, &tsvar->link);
+	}
+
+	if (!strncmp(key, "PK", 3))
+		off = 0;
+	else if (!strncmp(key, "KEK", 4))
+		off = 1;
+	else if (!strncmp(key, "db", 3))
+		off = 2;
+	else if (!strncmp(key, "dbx", 4))
+		off = 3;
+	else
+		return OPAL_INTERNAL_ERROR;
+
+	timestamp_list = tsvar->var->data;
+	if (!timestamp_list)
+		return OPAL_INTERNAL_ERROR;
+
+	prev = &((struct efi_time *)timestamp_list)[off];
 	if (prev == NULL)
 		return OPAL_INTERNAL_ERROR;
 
