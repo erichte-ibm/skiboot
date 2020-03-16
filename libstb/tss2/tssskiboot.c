@@ -684,3 +684,24 @@ cleanup:
 	free(out);
 	return rc;
 }
+
+
+int tss_nv_undefine_space(TPMI_RH_NV_INDEX nv_index)
+{
+	int rc;
+
+	NV_UndefineSpace_In in;
+
+	in.authHandle = TPM_RH_PLATFORM;
+	in.nvIndex = nv_index;
+
+	rc = TSS_Execute(context,
+			 (RESPONSE_PARAMETERS *) out,
+			 (COMMAND_PARAMETERS *) in,
+			 NULL,
+			 TPM_CC_NV_UNDEFINE_SPACE,
+			 TPM_RS_PW, NULL, 0,
+			 TPM_RH_NULL, NULL, 0);
+
+	return rc;
+}
