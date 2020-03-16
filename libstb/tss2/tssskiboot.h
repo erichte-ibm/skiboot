@@ -22,4 +22,5 @@ int tss_pcr_read(TPMI_DH_PCR pcr_handle, TPMI_ALG_HASH *alg_hashes,
 int tss_get_random_number(void *buffer, uint16_t bytes_requested);
 int tss_set_platform_auth(void);
 int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count);
+int tss_nv_undefine_space(TPMI_RH_NV_INDEX nv_index);
 #endif /* TSSSKIBOOT_H */

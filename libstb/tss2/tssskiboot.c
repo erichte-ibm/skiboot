@@ -685,3 +685,33 @@ cleanup:
 	free(out);
 	return rc;
 }
+
+
+int tss_nv_undefine_space(TPMI_RH_NV_INDEX nv_index)
+{
+	int rc;
+	TSS_CONTEXT *context = NULL;
+	NV_UndefineSpace_In in;
+
+	rc = TSS_Create(&context);
+	if (rc) {
+		tss_error_trace("tss_check_nv_undefine_index", rc);
+		rc = OPAL_NO_MEM;
+		return rc;
+	}
+
+	in.authHandle = TPM_RH_PLATFORM;
+	in.nvIndex = nv_index;
+
+	rc = TSS_Execute(context, NULL,
+			 (COMMAND_PARAMETERS *) &in,
+			 NULL,
+			 TPM_CC_NV_UndefineSpace,
+			 TPM_RS_PW, NULL, 0,
+			 TPM_RH_NULL, NULL, 0);
+	if (rc)
+		tss_error_trace("tss_check_nv_index", rc);
+
+	TSS_Delete(context);
+	return rc;
+}
