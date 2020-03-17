@@ -359,7 +359,7 @@ static int secboot_tpm_store_init(void)
 	TPMI_RH_NV_INDEX *indices = NULL;
 	size_t count = 0;
 	bool control_defined = false;
-	bool vars_defined = true;
+	bool vars_defined = false;
 	int i;
 
 	if (secboot_image)
