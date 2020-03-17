@@ -6,38 +6,38 @@
 #include "edk2-compat-reset.h"
 #include "../secvar.h"
 
-int reset_keystore(void)
+int reset_keystore(struct list_head *bank)
 {
 	struct secvar_node *node;
 	int rc = 0;
 
-	node = find_secvar("PK", 3, &variable_bank);
+	node = find_secvar("PK", 3, bank);
 	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0);
+		rc = update_variable_in_bank(node->var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("KEK", 4, &variable_bank);
+	node = find_secvar("KEK", 4, bank);
 	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0);
+		rc = update_variable_in_bank(node->var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("db", 3, &variable_bank);
+	node = find_secvar("db", 3, bank);
 	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0);
+		rc = update_variable_in_bank(node->var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("dbx", 4, &variable_bank);
+	node = find_secvar("dbx", 4, bank);
 	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0);
+		rc = update_variable_in_bank(node->var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("TS", 3, &variable_bank);
+	node = find_secvar("TS", 3, bank);
 	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0);
+		rc = update_variable_in_bank(node->var, NULL, 0, bank);
 
 	return rc;
 }
@@ -58,7 +58,7 @@ bool is_physical_presence_asserted(void)
 	return false;
 }
 
-int add_hw_key_hash(void)
+int add_hw_key_hash(struct list_head *bank)
 {
 	struct secvar_node *node;
 	uint32_t hw_key_hash_size;
@@ -78,21 +78,21 @@ int add_hw_key_hash(void)
 
 	node = new_secvar("HWKH", 5, hw_key_hash,
 			hw_key_hash_size, SECVAR_FLAG_PRIORITY);
-	list_add_tail(&variable_bank, &node->link);
+	list_add_tail(bank, &node->link);
 
 	return OPAL_SUCCESS;
 }
 
-int delete_hw_key_hash(void)
+int delete_hw_key_hash(struct list_head *bank)
 {
 	struct secvar_node *node;
 	int rc;
 
-	node = find_secvar("HWKH", 5, &variable_bank);
+	node = find_secvar("HWKH", 5, bank);
 	if (!node)
 		return OPAL_SUCCESS;
 
-	rc = update_variable_in_bank(node->var, NULL, 0);
+	rc = update_variable_in_bank(node->var, NULL, 0, bank);
 	return rc;
 }
 
