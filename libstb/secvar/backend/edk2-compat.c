@@ -95,7 +95,6 @@ static int edk2_compat_pre_process(void)
 static int edk2_compat_process(void)
 {
 	struct secvar_node *node = NULL;
-	struct secvar_node *tmp = NULL;
 	struct efi_time timestamp;
 	char *newesl = NULL;
 	int neweslsize;
@@ -130,16 +129,8 @@ static int edk2_compat_process(void)
 		return OPAL_EMPTY;
 	}
 
-	/* Perform a deep copy of the active bank to perform changes on.
-	 * Swap them at then end if processing succeeds */
 	list_head_init(&staging_bank);
-	list_for_each(&variable_bank, node, link) {
-		tmp = alloc_secvar(node->var->data_size);
-		tmp->flags = node->flags;
-		memcpy(tmp->var, node->var, tmp->size + sizeof(struct secvar));
-		list_add_tail(&staging_bank, &tmp->link);
-	}
-
+	copy_bank_list(&staging_bank, &variable_bank);
 
 	/* Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
@@ -184,7 +175,7 @@ static int edk2_compat_process(void)
 
 	if (rc == 0) {
 		clear_bank_list(&variable_bank);
-		variable_bank = staging_bank;
+		copy_bank_list(&variable_bank, &staging_bank);
 	}
 
 cleanup:
