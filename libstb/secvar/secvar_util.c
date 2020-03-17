@@ -24,6 +24,29 @@ void clear_bank_list(struct list_head *bank)
 	}
 }
 
+int copy_bank_list(struct list_head *dst, struct list_head *src)
+{
+	struct secvar_node *node, *tmp;
+
+	list_for_each(src, node, link) {
+		/* Allocate new secvar using actual data size */
+		tmp = alloc_secvar(node->var->data_size);
+		if (!tmp)
+			return OPAL_NO_MEM;
+
+		/* Copy over flags metadata */
+		tmp->flags = node->flags;
+
+		/* Full-clone over the secvar struct */
+		memcpy(tmp->var, node->var, tmp->size + sizeof(struct secvar));
+
+		/* Append to new list */
+		list_add_tail(dst, &tmp->link);
+	}
+
+	return OPAL_SUCCESS;
+}
+
 struct secvar_node *alloc_secvar(uint64_t size)
 {
 	struct secvar_node *ret;

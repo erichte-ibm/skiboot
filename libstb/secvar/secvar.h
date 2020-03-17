@@ -44,6 +44,7 @@ extern struct secvar_backend_driver secvar_backend;
 
 // Helper functions
 void clear_bank_list(struct list_head *bank);
+int copy_bank_list(struct list_head *dst, struct list_head *src);
 struct secvar_node *alloc_secvar(uint64_t size);
 struct secvar_node *new_secvar(const char *key, uint64_t key_len,
 			       const char *data, uint64_t data_size,
