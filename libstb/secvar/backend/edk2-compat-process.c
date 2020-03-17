@@ -20,11 +20,11 @@
 bool setup_mode;
 
 int update_variable_in_bank(struct secvar *secvar, const char *data,
-			    uint64_t dsize)
+			    uint64_t dsize, struct list_head *bank)
 {
 	struct secvar_node *node;
 
-	node = find_secvar(secvar->key, secvar->key_len, &staging_bank);
+	node = find_secvar(secvar->key, secvar->key_len, bank);
 	if (!node)
 		return OPAL_EMPTY;
 
@@ -284,16 +284,19 @@ int validate_esl_list(char *key, char *esl, size_t size)
 }
 
 /* Get the timestamp for the last update of the give key */
-static struct efi_time *get_last_timestamp(const char *key)
+static struct efi_time *get_last_timestamp(const char *key, char *last_timestamp)
 {
-	struct secvar_node *node;
-	char *timestamp_list;
+	//struct secvar_node *node;
+	//char *timestamp_list;
 	u8 off;
 
-	node = find_secvar("TS", 3, &staging_bank);
+//	node = find_secvar("TS", 3, bank);
 
 	/* We cannot find timestamp variable, did someone tamper it ? */
-	if (!node)
+//	if (!node)
+//		return NULL;
+
+	if (!last_timestamp)
 		return NULL;
 
 	if (!strncmp(key, "PK", 3))
@@ -307,18 +310,18 @@ static struct efi_time *get_last_timestamp(const char *key)
 	else
 		return NULL;
 
-	timestamp_list = node->var->data;
-	if (!timestamp_list)
-		return NULL;
+//	timestamp_list = node->var->data;
+//	if (!timestamp_list)
+//		return NULL;
 
-	return &((struct efi_time *)timestamp_list)[off];
+	return &((struct efi_time *)last_timestamp)[off];
 }
 
-int update_timestamp(char *key, struct efi_time *timestamp)
+int update_timestamp(char *key, struct efi_time *timestamp, char *last_timestamp)
 {
 	struct efi_time *prev;
 
-	prev = get_last_timestamp(key);
+	prev = get_last_timestamp(key, last_timestamp);
 	if (prev == NULL)
 		return OPAL_INTERNAL_ERROR;
 
@@ -330,11 +333,12 @@ int update_timestamp(char *key, struct efi_time *timestamp)
 	return OPAL_SUCCESS;
 }
 
-int check_timestamp(char *key, struct efi_time *timestamp)
+int check_timestamp(char *key, struct efi_time *timestamp,
+		    char *last_timestamp)
 {
 	struct efi_time *prev;
 
-	prev = get_last_timestamp(key);
+	prev = get_last_timestamp(key, last_timestamp);
 	if (prev == NULL)
 		return OPAL_INTERNAL_ERROR;
 
@@ -604,7 +608,8 @@ bool is_pkcs7_sig_format(void *data)
 }
 
 int process_update(struct secvar_node *update, char **newesl,
-		   int *new_data_size, struct efi_time *timestamp)
+		   int *new_data_size, struct efi_time *timestamp,
+		   struct list_head *bank, char *last_timestamp)
 {
 	struct efi_variable_authentication_2 *auth = NULL;
 	char *auth_buffer = NULL;
@@ -634,7 +639,7 @@ int process_update(struct secvar_node *update, char **newesl,
 
 	memcpy(timestamp, auth_buffer, sizeof(struct efi_time));
 
-	rc = check_timestamp(update->var->key, timestamp);
+	rc = check_timestamp(update->var->key, timestamp, last_timestamp);
 	/* Failure implies probably an older command being resubmitted */
 	if (rc != OPAL_SUCCESS)
 		goto out;
@@ -677,7 +682,7 @@ int process_update(struct secvar_node *update, char **newesl,
 		prlog(PR_DEBUG, "key is %s\n", update->var->key);
 		prlog(PR_DEBUG, "key authority is %s\n", key_authority[i]);
 		anode = find_secvar(key_authority[i], strlen(key_authority[i]) + 1,
-				    &staging_bank);
+				    bank);
 		if (!anode || !anode->var->data_size) {
 			i++;
 			continue;

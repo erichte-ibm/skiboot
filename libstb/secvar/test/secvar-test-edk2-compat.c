@@ -28,10 +28,10 @@
 #include "./data/multipleDB.h"
 #include "./data/multiplePK.h"
 
-int reset_keystore(void) { return 0; }
+int reset_keystore(struct list_head *bank __unused) { return 0; }
 bool is_physical_presence_asserted(void) { return 0; }
-int add_hw_key_hash(void) { return 0; }
-int delete_hw_key_hash(void) { return 0; }
+int add_hw_key_hash(struct list_head *bank __unused) { return 0; }
+int delete_hw_key_hash(struct list_head *bank __unused) { return 0; }
 int verify_hw_key_hash(void) { return 0; }
 
 const char *secvar_test_name = "edk2-compat";
@@ -53,7 +53,7 @@ int run_test()
 
 	// Check pre-process creates the empty variables
 	ASSERT(0 == list_length(&variable_bank));
-	rc = edk2_compat_pre_process();
+	rc = edk2_compat_pre_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	tmp = find_secvar("TS", 3, &variable_bank);
@@ -73,7 +73,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -95,7 +95,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	printf("rc is %d %04x\n", rc, rc);
 	ASSERT(OPAL_SUCCESS != rc);
 	ASSERT(5 == list_length(&variable_bank));
@@ -116,7 +116,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -135,7 +135,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_PERMISSION == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -155,7 +155,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -176,7 +176,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_PERMISSION == rc);
 
 	// Add invalid KEK, .process(), should fail
@@ -191,7 +191,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS != rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -211,7 +211,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS != rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -230,7 +230,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -249,7 +249,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -268,7 +268,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
@@ -288,7 +288,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
-	rc = edk2_compat_process();
+	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS != rc);
 
 	return 0;

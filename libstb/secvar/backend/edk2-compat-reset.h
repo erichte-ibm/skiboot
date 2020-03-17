@@ -9,7 +9,7 @@
 #endif
 
 /* clear all os keys and the timestamp*/
-int reset_keystore(void);
+int reset_keystore(struct list_head *bank);
 
 /* Check if physical presence is asserted */
 bool is_physical_presence_asserted(void);
@@ -19,9 +19,9 @@ bool is_physical_presence_asserted(void);
 int verify_hw_key_hash(void);
 
 /* Adds hw-key-hash */
-int add_hw_key_hash(void);
+int add_hw_key_hash(struct list_head *bank);
 
 /* Delete hw-key-hash */
-int delete_hw_key_hash(void);
+int delete_hw_key_hash(struct list_head *bank);
 
 #endif
