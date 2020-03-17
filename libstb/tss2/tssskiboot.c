@@ -689,17 +689,16 @@ cleanup:
 int tss_nv_undefine_space(TPMI_RH_NV_INDEX nv_index)
 {
 	int rc;
-
+	TSS_CONTEXT *context = NULL;
 	NV_UndefineSpace_In in;
 
 	in.authHandle = TPM_RH_PLATFORM;
 	in.nvIndex = nv_index;
 
-	rc = TSS_Execute(context,
-			 (RESPONSE_PARAMETERS *) out,
-			 (COMMAND_PARAMETERS *) in,
+	rc = TSS_Execute(context, NULL,
+			 (COMMAND_PARAMETERS *) &in,
 			 NULL,
-			 TPM_CC_NV_UNDEFINE_SPACE,
+			 TPM_CC_NV_UndefineSpace,
 			 TPM_RS_PW, NULL, 0,
 			 TPM_RH_NULL, NULL, 0);
 
