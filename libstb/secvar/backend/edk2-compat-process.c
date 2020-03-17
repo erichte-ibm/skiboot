@@ -286,15 +286,7 @@ int validate_esl_list(char *key, char *esl, size_t size)
 /* Get the timestamp for the last update of the give key */
 static struct efi_time *get_last_timestamp(const char *key, char *last_timestamp)
 {
-	//struct secvar_node *node;
-	//char *timestamp_list;
 	u8 off;
-
-//	node = find_secvar("TS", 3, bank);
-
-	/* We cannot find timestamp variable, did someone tamper it ? */
-//	if (!node)
-//		return NULL;
 
 	if (!last_timestamp)
 		return NULL;
@@ -309,10 +301,6 @@ static struct efi_time *get_last_timestamp(const char *key, char *last_timestamp
 		off = 3;
 	else
 		return NULL;
-
-//	timestamp_list = node->var->data;
-//	if (!timestamp_list)
-//		return NULL;
 
 	return &((struct efi_time *)last_timestamp)[off];
 }
