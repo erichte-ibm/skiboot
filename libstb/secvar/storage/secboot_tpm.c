@@ -422,8 +422,6 @@ static int secboot_tpm_store_init(void)
 			control_defined = true;
 	}
 
-	free(indices);
-
 	// TODO check sizes of each index
 	/* Determine if we need to define the indices. These should BOTH be false or true */
 	if (!vars_defined && !control_defined) {
