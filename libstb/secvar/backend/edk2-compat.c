@@ -156,7 +156,8 @@ static int edk2_compat_process(struct list_head *variable_bank,
 	              	break;
 		}
 
-		rc = process_update(node, &newesl, &neweslsize, &timestamp, &staging_bank, tsvar->var->data);
+		rc = process_update(node, &newesl, &neweslsize, &timestamp, &staging_bank,
+				    tsvar->var->data);
 		if (rc)
 			break;
 
