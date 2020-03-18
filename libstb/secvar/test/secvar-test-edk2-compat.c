@@ -29,7 +29,6 @@
 #include "./data/multiplePK.h"
 
 int reset_keystore(struct list_head *bank __unused) { return 0; }
-bool is_physical_presence_asserted(void) { return 0; }
 int add_hw_key_hash(struct list_head *bank __unused) { return 0; }
 int delete_hw_key_hash(struct list_head *bank __unused) { return 0; }
 int verify_hw_key_hash(void) { return 0; }
