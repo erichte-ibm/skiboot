@@ -40,6 +40,19 @@ int tss_get_defined_nv_indices(TPMI_RH_NV_INDEX **indices, size_t *count)
 	return 0;
 }
 
+int tss_nv_undefine_space(TPMI_RH_NV_INDEX index)
+{
+	(void) index;
+	return 0;
+}
+
+/* Toggle this to test the physical presence resetting */
+bool phys_presence = false;
+bool secvar_check_physical_presence(void)
+{
+	return phys_presence;
+}
+
 struct platform platform;
 
 int run_test(void)
