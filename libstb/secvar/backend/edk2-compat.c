@@ -105,16 +105,6 @@ static int edk2_compat_process(struct list_head *variable_bank,
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
-	/* Check if physical presence is asserted */
-	if (is_physical_presence_asserted()) {
-		prlog(PR_INFO, "Physical presence asserted to clear OS Secure boot keys\n");
-		rc = reset_keystore(variable_bank);
-		if (rc)
-			goto cleanup;
-		setup_mode = true;
-		goto cleanup;
-	}
-
 	/* Check HW-KEY-HASH */
 	if (!setup_mode) {
 		rc = verify_hw_key_hash();
