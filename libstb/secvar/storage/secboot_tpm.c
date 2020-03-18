@@ -9,6 +9,7 @@
 #include <opal.h>
 #include <mbedtls/sha256.h>
 #include "../secvar.h"
+#include "../secvar_devtree.h"
 #include "secboot_tpm.h"
 #include <tssskiboot.h>
 #include <ibmtss/TPM_Types.h>
@@ -370,8 +371,17 @@ static int secboot_tpm_store_init(void)
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
-	// TODO: check physical presence here
-	// TODO: undefine indices if necessary here
+	/* Check if physical presence is asserted */
+	if (secvar_check_physical_presence()) {
+		prlog(PR_INFO, "Physical presence asserted, redefining NV indices, and resetting keystore\n");
+		rc = tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
+		if (rc)
+			goto error;
+
+		rc = tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
+		if (rc)
+			goto error;
+	}
 
 	/* Initialize SECBOOT first, we may need to format this later */
 	rc = platform.secboot_info(&secboot_size);
