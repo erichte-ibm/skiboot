@@ -42,21 +42,6 @@ int reset_keystore(struct list_head *bank)
 	return rc;
 }
 
-bool is_physical_presence_asserted(void)
-{
-	struct dt_node *secureboot;
-
-	secureboot = dt_find_by_path(dt_root, "ibm,secureboot");
-	if (!secureboot)
-		return false;
-
-	if (dt_find_property(secureboot, "clear-os-keys")
-			|| dt_find_property(secureboot, "clear-all-keys")
-			|| dt_find_property(secureboot, "clear-mfg-keys"))
-		return true;
-
-	return false;
-}
 
 int add_hw_key_hash(struct list_head *bank)
 {

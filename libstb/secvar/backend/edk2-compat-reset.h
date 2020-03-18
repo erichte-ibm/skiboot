@@ -11,9 +11,6 @@
 /* clear all os keys and the timestamp*/
 int reset_keystore(struct list_head *bank);
 
-/* Check if physical presence is asserted */
-bool is_physical_presence_asserted(void);
-
 /* Compares the hw-key-hash from device tree to the value stored in
  * the protected storage to ensure it is not modified */
 int verify_hw_key_hash(void);
