@@ -374,13 +374,10 @@ static int secboot_tpm_store_init(void)
 	/* Check if physical presence is asserted */
 	if (secvar_check_physical_presence()) {
 		prlog(PR_INFO, "Physical presence asserted, redefining NV indices, and resetting keystore\n");
-		rc = tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
-		if (rc)
-			goto error;
-
-		rc = tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
-		if (rc)
-			goto error;
+		/* For now, ignore errors in these functions.
+		 * We should fail on TPM failure, but not if the index isn't defined. */
+		tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
+		tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
 	}
 
 	/* Initialize SECBOOT first, we may need to format this later */
