@@ -696,7 +696,7 @@ int tss_nv_undefine_space(TPMI_RH_NV_INDEX nv_index)
 	if (rc) {
 		tss_error_trace("tss_check_nv_undefine_index", rc);
 		rc = OPAL_NO_MEM;
-		goto cleanup;
+		return rc;
 	}
 
 	in.authHandle = TPM_RH_PLATFORM;
@@ -708,8 +708,9 @@ int tss_nv_undefine_space(TPMI_RH_NV_INDEX nv_index)
 			 TPM_CC_NV_UndefineSpace,
 			 TPM_RS_PW, NULL, 0,
 			 TPM_RH_NULL, NULL, 0);
+	if (rc)
+		tss_error_trace("tss_check_nv_index", rc);
 
-cleanup:
 	TSS_Delete(context);
 	return rc;
 }
