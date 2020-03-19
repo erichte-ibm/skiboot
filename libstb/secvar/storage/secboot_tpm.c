@@ -443,20 +443,18 @@ static int secboot_tpm_store_init(void)
 		rc = tpmnv_format();
 		if (rc)
 			goto error;
+
+		/* TPM NV just got redefined, so unconditionally format the SECBOOT partition */
+		rc = secboot_format();
+		if (rc)
+			goto error;
+
+		/* Everything just got reformatted, so we're done here */
+		goto done;
 	} else if (vars_defined ^ control_defined) {
 		/* This should never happen. Both indices should be defined at the same
 		 * time. Otherwise something seriously went wrong. P A N I C. */
 		// TODO: panic
-	}
-
-	/* Determine if we need to reformat the secboot PNOR partition */
-	if (!vars_defined || !control_defined || // TODO: we technically don't have to check both here
-	    secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
-		rc = secboot_format();
-		if (rc)
-			goto error;
-		/* skip over reading from TPMNV, we just formatted them */
-		goto done;
 	}
 
 	/* TPMNV indices exist and weren't just formatted, so read them in */
@@ -472,6 +470,13 @@ static int secboot_tpm_store_init(void)
 	    tpmnv_control_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
 		prlog(PR_ERR, "CRITICAL: TPMNV indices defined, but contain bad data. Assert physical presence to clear\n");
 		goto error;
+	}
+
+	/* Determine if we need to reformat the secboot PNOR partition */
+	if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
+		rc = secboot_format();
+		if (rc)
+			goto error;
 	}
 
 done:
