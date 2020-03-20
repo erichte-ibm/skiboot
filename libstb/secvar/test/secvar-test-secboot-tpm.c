@@ -46,6 +46,15 @@ int tss_nv_undefine_space(TPMI_RH_NV_INDEX index)
 	return 0;
 }
 
+int tss_nv_read_public(TPMI_RH_NV_INDEX nv_index, TPMS_NV_PUBLIC *nv_public,
+		       TPM2B_NAME *nv_name)
+{
+	(void) nv_index;
+	(void) nv_public;
+	(void) nv_name;
+	return 0;
+}
+
 /* Toggle this to test the physical presence resetting */
 bool phys_presence = false;
 bool secvar_check_physical_presence(void)
