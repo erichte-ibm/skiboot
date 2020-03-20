@@ -26,6 +26,16 @@ extern struct tpmnv_ops_s tpmnv_ops;
 
 const size_t tpmnv_vars_size = 1024;
 
+
+const uint8_t tpmnv_vars_name[] = {0x00, 0x0b,
+0xe7, 0x60, 0x2c, 0xc9, 0x6b, 0x56, 0xb7, 0x20, 0x0c, 0xbe, 0x27, 0xfc, 0x98, 0xdb, 0x21, 0xf4,
+0xbe, 0x77, 0x79, 0xb1, 0xb1, 0x61, 0x45, 0x7e, 0xc0, 0x19, 0x54, 0x79, 0x83, 0xd0, 0x2e, 0x63};
+
+const uint8_t tpmnv_control_name[] = {0x00, 0x0b,
+0x34, 0x9b, 0x02, 0xf2, 0xb9, 0x23, 0x6c, 0xec, 0x1e, 0xdf, 0x53, 0xb9, 0x8d, 0x87, 0xd6, 0x74,
+0x8d, 0x0e, 0x97, 0x54, 0x1d, 0xa1, 0xd6, 0x20, 0x1e, 0xcc, 0x61, 0xd2, 0x75, 0x9e, 0x9a, 0x47};
+
+
 /* Calculate a SHA256 hash over the supplied buffer */
 static int calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
 {
@@ -358,6 +368,8 @@ static int secboot_tpm_store_init(void)
 
 	// TODO: stash these away via helper function?
 	TPMI_RH_NV_INDEX *indices = NULL;
+	TPMS_NV_PUBLIC nv_public;
+	TPM2B_NAME nv_name;
 	size_t count = 0;
 	bool control_defined = false;
 	bool vars_defined = false;
@@ -455,6 +467,24 @@ static int secboot_tpm_store_init(void)
 		/* This should never happen. Both indices should be defined at the same
 		 * time. Otherwise something seriously went wrong. P A N I C. */
 		// TODO: panic
+	}
+
+	/* Ensure the NV indices were defined with the correct set of attributes, hierarchy */
+	/* TODO: Do we want to undefine here, or panic and have them assert physical presence? */
+	rc = tss_nv_read_public(SECBOOT_TPMNV_VARS_INDEX, &nv_public, &nv_name);
+	if (rc)
+		goto error;
+
+	if (memcmp(tpmnv_vars_name, &nv_name, sizeof(tpmnv_vars_name))) {
+		goto error;
+	}
+
+	rc = tss_nv_read_public(SECBOOT_TPMNV_CONTROL_INDEX, &nv_public, &nv_name);
+	if (rc)
+		goto error;
+
+	if (memcmp(tpmnv_control_name, &nv_name, sizeof(tpmnv_control_name))) {
+		goto error;
 	}
 
 	/* TPMNV indices exist and weren't just formatted, so read them in */
