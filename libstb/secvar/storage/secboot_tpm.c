@@ -135,6 +135,8 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 	if (!target)
 		return OPAL_INTERNAL_ERROR;
 
+	memset(target, 0x00, target_size);
+
 	list_for_each(bank, node, link) {
 		if (node->flags != flags)
 			continue;
