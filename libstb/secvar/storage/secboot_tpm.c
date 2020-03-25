@@ -72,19 +72,22 @@ static int tpmnv_format(void)
 
 	/* Counts as first write to the TPM NV, as required by fresh NV indices */
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
-	if (rc)
+	if (rc) {
+		prlog(PR_ERR, "Could not write new formatted data to VARS index, rc=%d\n", rc);
 		return rc;
+	}
 
-	return tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
+	if (rc)
+		prlog(PR_ERR, "Could not write new formatted data to CONTROL index, rc=%d\n", rc);
+
+	return rc;
 }
 
 /* Reformat the secboot PNOR space */
 static int secboot_format(void)
 {
 	int rc;
-
-	if (!platform.secboot_write)
-		return OPAL_UNSUPPORTED;
 
 	memset(secboot_image, 0x00, sizeof(struct secboot));
 
@@ -93,14 +96,22 @@ static int secboot_format(void)
 
 	/* Write the hash of the empty bank to the tpm so loads work in the future */
 	rc = calc_bank_hash(tpmnv_control_image->bank_hash[0], secboot_image->bank[0], SECBOOT_VARIABLE_BANK_SIZE);
-	if (rc)
+	if (rc) {
+		prlog(PR_ERR, "Bank hash failed to calculate somehow\n");
 		return rc;
+	}
 
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[0], SHA256_DIGEST_SIZE, offsetof(struct tpmnv_control, bank_hash[0]));
-	if (rc)
+	if (rc) {
+		prlog(PR_ERR, "Could not write fresh formatted bank hashes to CONTROL index, rc=%d\n", rc);
 		return rc;
+	}
 
-	return platform.secboot_write(0, secboot_image, sizeof(struct secboot));
+	rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
+	if (rc)
+		prlog(PR_ERR, "Could not write formatted data to PNOR, rc=%d\n", rc);
+
+	return rc;
 }
 
 
@@ -363,15 +374,68 @@ static int secboot_tpm_load_bank(struct list_head *bank, int section)
 }
 
 
+/* Ensure the NV indices were defined with the correct set of attributes */
+static int secboot_tpm_check_tpmnv_attrs(void)
+{
+	TPMS_NV_PUBLIC nv_public; /* Throwaway, we only want the name field */
+	TPM2B_NAME nv_vars_name;
+	TPM2B_NAME nv_control_name;
+	int rc;
+
+	rc = tss_nv_read_public(SECBOOT_TPMNV_VARS_INDEX, &nv_public, &nv_vars_name);
+	if (rc) {
+		prlog(PR_ERR, "Failed to readpublic from the VARS index, rc=%d\n", rc);
+		return rc;
+	}
+	rc = tss_nv_read_public(SECBOOT_TPMNV_CONTROL_INDEX, &nv_public, &nv_control_name);
+	if (rc) {
+		prlog(PR_ERR, "Failed to readpublic from the CONTROL index, rc=%d\n", rc);
+		return rc;
+	}
+
+	if (memcmp(tpmnv_vars_name, &nv_vars_name, sizeof(tpmnv_vars_name))) {
+		prlog(PR_ERR, "VARS index not defined with the correct attributes\n");
+		return -1;
+	}
+	if (memcmp(tpmnv_control_name, &nv_control_name, sizeof(tpmnv_control_name))) {
+		prlog(PR_ERR, "CONTROL index not defined with the correct attributes\n");
+		return -1;
+	}
+
+	return OPAL_SUCCESS;
+}
+
+
+static int secboot_tpm_define_indices(void)
+{
+	int rc = OPAL_SUCCESS;
+
+	rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
+	if (rc) {
+		prlog(PR_ERR, "Failed to define the VARS index, rc=%d\n", rc);
+		return rc;
+	}
+
+	rc = tpmnv_ops.definespace(SECBOOT_TPMNV_CONTROL_INDEX, sizeof(struct tpmnv_control));
+	if (rc) {
+		prlog(PR_ERR, "Failed to define the CONTROL index, rc=%d\n", rc);
+		return rc;
+	}
+
+	rc = tpmnv_format();
+	if (rc)
+		return rc;
+
+	/* TPM NV just got redefined, so unconditionally format the SECBOOT partition */
+	return secboot_format();
+}
+
 static int secboot_tpm_store_init(void)
 {
 	int rc;
 	unsigned secboot_size;
 
-	// TODO: stash these away via helper function?
 	TPMI_RH_NV_INDEX *indices = NULL;
-	TPMS_NV_PUBLIC nv_public;
-	TPM2B_NAME nv_name;
 	size_t count = 0;
 	bool control_defined = false;
 	bool vars_defined = false;
@@ -390,8 +454,17 @@ static int secboot_tpm_store_init(void)
 		prlog(PR_INFO, "Physical presence asserted, redefining NV indices, and resetting keystore\n");
 		/* For now, ignore errors in these functions.
 		 * We should fail on TPM failure, but not if the index isn't defined. */
-		tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
-		tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
+		rc = tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
+		if (rc) {
+			prlog(PR_ERR, "Physical presence undefine failed to undefine VARS, something is seriously wrong\n");
+			goto error;
+		}
+
+		rc = tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
+		if (rc) {
+			prlog(PR_ERR, "Physical presence undefine failed to undefine CONTROL, something is seriously wrong\n");
+			goto error;
+		}
 	}
 
 	/* Initialize SECBOOT first, we may need to format this later */
@@ -421,8 +494,7 @@ static int secboot_tpm_store_init(void)
 		goto error;
 	}
 
-	/* Allocate and load data from the TPM NV indices,
-	 * define them if they are not already. */
+	/* Allocate the tpmnv data buffers */
 	tpmnv_vars_image = zalloc(tpmnv_vars_size);
 	if (!tpmnv_vars_image)
 		return OPAL_NO_MEM;
@@ -430,11 +502,12 @@ static int secboot_tpm_store_init(void)
 	if (!tpmnv_control_image)
 		return OPAL_NO_MEM;
 
-
-	// TODO: put all this in a helper function?
+	/* Check if the NV indices have been defined already */
 	rc = tss_get_defined_nv_indices(&indices, &count);
-	if (rc)
+	if (rc) {
+		prlog(PR_ERR, "Could not load defined indicies from TPM, rc=%d\n", rc);
 		goto error;
+	}
 
 	for (i = 0; i < count; i++) {
 		if (indices[i] == SECBOOT_TPMNV_VARS_INDEX)
@@ -442,73 +515,54 @@ static int secboot_tpm_store_init(void)
 		else if (indices[i] == SECBOOT_TPMNV_CONTROL_INDEX)
 			control_defined = true;
 	}
+	free(indices);
 
-	// TODO check sizes of each index
 	/* Determine if we need to define the indices. These should BOTH be false or true */
 	if (!vars_defined && !control_defined) {
-		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_size);
+		rc = secboot_tpm_define_indices();
 		if (rc)
 			goto error;
 
-		rc = tpmnv_ops.definespace(SECBOOT_TPMNV_CONTROL_INDEX, sizeof(struct tpmnv_control));
-		if (rc)
-			goto error;
-
-		rc = tpmnv_format();
-		if (rc)
-			goto error;
-
-		/* TPM NV just got redefined, so unconditionally format the SECBOOT partition */
-		rc = secboot_format();
-		if (rc)
-			goto error;
-
-		/* Everything just got reformatted, so we're done here */
+		/* Indicies got defined and formatted, we're done here */
 		goto done;
 	} else if (vars_defined ^ control_defined) {
 		/* This should never happen. Both indices should be defined at the same
-		 * time. Otherwise something seriously went wrong. P A N I C. */
-		// TODO: panic
-	}
-
-	/* Ensure the NV indices were defined with the correct set of attributes, hierarchy */
-	/* TODO: Do we want to undefine here, or panic and have them assert physical presence? */
-	rc = tss_nv_read_public(SECBOOT_TPMNV_VARS_INDEX, &nv_public, &nv_name);
-	if (rc)
-		goto error;
-
-	if (memcmp(tpmnv_vars_name, &nv_name, sizeof(tpmnv_vars_name))) {
+		 * time. Otherwise something seriously went wrong. */
+		prlog(PR_ERR, "NV indices defined with unexpected attributes. Assert physical presence to clear\n");
 		goto error;
 	}
 
-	rc = tss_nv_read_public(SECBOOT_TPMNV_CONTROL_INDEX, &nv_public, &nv_name);
-	if (rc)
-		goto error;
+	/* Ensure the NV indices were defined with the correct set of attributes */
+	secboot_tpm_check_tpmnv_attrs();
 
-	if (memcmp(tpmnv_control_name, &nv_name, sizeof(tpmnv_control_name))) {
-		goto error;
-	}
-
-	/* TPMNV indices exist and weren't just formatted, so read them in */
+	/* TPMNV indices exist, are correct, and weren't just formatted, so read them in */
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
-	if (rc)
+	if (rc) {
+		prlog(PR_ERR, "Failed to read from the VARS index\n");
 		goto error;
+	}
 
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image, sizeof(struct tpmnv_control), 0);
-	if (rc)
-		goto error;
-
-	if (tpmnv_vars_image->header.magic_number != SECBOOT_MAGIC_NUMBER ||
-	    tpmnv_control_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
-		prlog(PR_ERR, "CRITICAL: TPMNV indices defined, but contain bad data. Assert physical presence to clear\n");
+	if (rc) {
+		prlog(PR_ERR, "Failed to read from the CONTROL index\n");
 		goto error;
 	}
 
-	/* Determine if we need to reformat the secboot PNOR partition */
-	if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER) {
-		rc = secboot_format();
-		if (rc)
-			goto error;
+	/* Verify the header information is correct */
+	if (tpmnv_vars_image->header.magic_number != SECBOOT_MAGIC_NUMBER ||
+	    tpmnv_control_image->header.magic_number != SECBOOT_MAGIC_NUMBER ||
+	    tpmnv_vars_image->header.version != SECBOOT_VERSION ||
+	    tpmnv_control_image->header.version != SECBOOT_VERSION) {
+		prlog(PR_ERR, "TPMNV indices defined, but contain bad data. Assert physical presence to clear\n");
+		goto error;
+	}
+
+	/* Verify the secboot partition header information, reformat if incorrect
+	 * Note: Future variants should attempt to handle older versions safely
+	 */
+	if (secboot_image->header.magic_number != SECBOOT_MAGIC_NUMBER ||
+	    secboot_image->header.version != SECBOOT_VERSION) {
+		secboot_format();
 	}
 
 done:
@@ -523,7 +577,8 @@ error:
 	tpmnv_control_image = NULL;
 	free(indices);
 
-	return rc;
+	/* TODO: Should secvar_main be the one that does this? */
+	abort();
 }
 
 
