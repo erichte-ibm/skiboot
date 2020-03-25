@@ -449,24 +449,6 @@ static int secboot_tpm_store_init(void)
 
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
-	/* Check if physical presence is asserted */
-	if (secvar_check_physical_presence()) {
-		prlog(PR_INFO, "Physical presence asserted, redefining NV indices, and resetting keystore\n");
-		/* For now, ignore errors in these functions.
-		 * We should fail on TPM failure, but not if the index isn't defined. */
-		rc = tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
-		if (rc) {
-			prlog(PR_ERR, "Physical presence undefine failed to undefine VARS, something is seriously wrong\n");
-			goto error;
-		}
-
-		rc = tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
-		if (rc) {
-			prlog(PR_ERR, "Physical presence undefine failed to undefine CONTROL, something is seriously wrong\n");
-			goto error;
-		}
-	}
-
 	/* Initialize SECBOOT first, we may need to format this later */
 	rc = platform.secboot_info(&secboot_size);
 	if (rc) {
@@ -516,6 +498,30 @@ static int secboot_tpm_store_init(void)
 			control_defined = true;
 	}
 	free(indices);
+
+	/* Check if physical presence is asserted */
+	if (secvar_check_physical_presence()) {
+		prlog(PR_INFO, "Physical presence asserted, redefining NV indices, and resetting keystore\n");
+		/* For now, ignore errors in these functions.
+		 * We should fail on TPM failure, but not if the index isn't defined. */
+		if (vars_defined) {
+			rc = tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
+			if (rc) {
+				prlog(PR_ERR, "Physical presence undefine failed to undefine VARS, something is seriously wrong\n");
+				goto error;
+			}
+		}
+
+		if (control_defined) {
+			rc = tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
+			if (rc) {
+				prlog(PR_ERR, "Physical presence undefine failed to undefine CONTROL, something is seriously wrong\n");
+				goto error;
+			}
+		}
+
+		vars_defined = control_defined = false;
+	}
 
 	/* Determine if we need to define the indices. These should BOTH be false or true */
 	if (!vars_defined && !control_defined) {
