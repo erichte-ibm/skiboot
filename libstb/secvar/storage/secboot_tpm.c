@@ -507,7 +507,7 @@ static int secboot_tpm_store_init(void)
 		if (vars_defined) {
 			rc = tss_nv_undefine_space(SECBOOT_TPMNV_VARS_INDEX);
 			if (rc) {
-				prlog(PR_ERR, "Physical presence undefine failed to undefine VARS, something is seriously wrong\n");
+				prlog(PR_ERR, "Physical presence failed to undefine VARS, something is seriously wrong\n");
 				goto error;
 			}
 		}
@@ -515,7 +515,7 @@ static int secboot_tpm_store_init(void)
 		if (control_defined) {
 			rc = tss_nv_undefine_space(SECBOOT_TPMNV_CONTROL_INDEX);
 			if (rc) {
-				prlog(PR_ERR, "Physical presence undefine failed to undefine CONTROL, something is seriously wrong\n");
+				prlog(PR_ERR, "Physical presence failed to undefine CONTROL, something is seriously wrong\n");
 				goto error;
 			}
 		}
