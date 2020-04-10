@@ -133,6 +133,7 @@ static char *secboot_serialize_priority(char *target, struct secvar_node *node, 
 	memcpy(target, node->var->key, node->var->key_len);
 	target += node->var->key_len;
 	memcpy(target, node->var->data, node->var->data_size);
+	target += node->var->data_size;
 
 	return target;
 }
