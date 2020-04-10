@@ -110,7 +110,7 @@ static int edk2_compat_process(struct list_head *variable_bank,
 	if (!setup_mode) {
 		rc = verify_hw_key_hash();
 		if (rc != OPAL_SUCCESS) {
-			prlog(PR_ERR, "Hardware key hash verification match\n");
+			prlog(PR_ERR, "Hardware key hash verification mismatch\n");
 			rc = reset_keystore(variable_bank);
 			if (rc)
 				goto cleanup;
