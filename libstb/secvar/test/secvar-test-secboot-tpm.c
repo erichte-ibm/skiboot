@@ -85,6 +85,15 @@ int run_test(void)
 	tmp->flags |= SECVAR_FLAG_PRIORITY;
 	list_add_tail(&variable_bank, &tmp->link);
 
+	// Add another one
+	tmp = alloc_secvar(4);
+	tmp->var->key_len = 10;
+	memcpy(tmp->var->key, "priority2", 9);
+	tmp->var->data_size = 4;
+	memcpy(tmp->var->data, "meep", 4);
+	tmp->flags |= SECVAR_FLAG_PRIORITY;
+	list_add_tail(&variable_bank, &tmp->link);
+
 	// Write the bank
 	rc = secboot_tpm_write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
@@ -99,7 +108,7 @@ int run_test(void)
 	// Load the bank
 	rc = secboot_tpm_load_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
-	ASSERT(3 == list_length(&variable_bank));
+	ASSERT(4 == list_length(&variable_bank));
 
 	// Change a variable
 	tmp = list_tail(&variable_bank, struct secvar_node, link);
