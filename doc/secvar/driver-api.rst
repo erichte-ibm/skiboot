@@ -58,6 +58,13 @@ The ``store_init`` hook is called at the beginning of secure variable
 intialization. This hook should perform any initialization logic
 required for the other hooks to operate.
 
+IMPORTANT: If this hook returns an error (non-zero) code, secvar will
+immediately halt the boot. When implementing this hook, consider the
+implications of any errors in initialization, and whether they may
+affect the secure state. For example, if secure state is
+indeterminable due to some hardware failure, this is grounds for a
+halt.
+
 This hook should only be called once. Subsequent calls should have no
 effect, or raise an error.
 
@@ -106,25 +113,61 @@ more than once for each ``section``.
 lock
 ^^^^
 
-The ``lock`` hook should perform any write-lock protections as
-necessary by the platform. This hook is unconditionally called after
-the processing step performed in the main secure variable logic, and
+The ``lock`` hook may perform any write-lock protections as necessary
+by the platform. This hook is unconditionally called after the
+processing step performed in the main secure variable logic, and
 should only be called once. Subsequent calls should have no effect, or
 raise an error.
 
-This hook should also be called in any error cases that may interrupt
+This hook MUST also be called in any error cases that may interrupt
 the regular secure variable initialization flow, to prevent leaving
 the storage mechanism open to unauthorized writes.
 
+This hook MUST halt the boot if any internal errors arise that may
+compromise the protection of the storage.
 
-max_size
-^^^^^^^^
+If locking is not applicable to the storage mechanism, this hook may
+be implemented as a no-op.
 
-The ``max_size`` field is not a function hook, but a value to be
+
+max_var_size
+^^^^^^^^^^^^
+
+The ``max_var_size`` field is not a function hook, but a value to be
 referenced by other components to determine the maximum variable size.
 As this driver is responsible for persisting variables somewhere, it
 has the option to determine the maximum size to use.
 
+
+A Quick Note on Secvar Flags
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+While "communication" between the storage and backend drivers has
+been minimized as best as possible, there are a few cases where the
+storage driver may need to take a few hints from the backend.
+
+The ``flags`` field in ``struct secvar_node`` may contain one of
+the following values:
+
+.. code-block:: c
+
+  #define SECVAR_FLAG_VOLATILE		0x1
+  #define SECVAR_FLAG_SECURE_STORAGE	0x2
+  #define SECVAR_FLAG_PRIORITY		0x4
+
+At time of writing this document, the flags are mutually exclusive,
+however this may change in the future.
+
+``VOLATILE`` indicates that the storage driver should NOT persist
+this variable to storage.
+
+``PRIORITY`` indicates that this variable has a heightened importance
+than other variables, and if applicable to the storage driver, stored
+in a more secure/tamper-resistant region (e.g. store variables
+important to secureboot state in TPM NV rather than PNOR on p9).
+
+TODO: Rename priority to something else?
+TODO: Remove secure storage
 
 Backend Driver API
 ------------------
@@ -136,9 +179,12 @@ platform's secure boot modes.
 .. code-block:: c
 
   struct secvar_backend_driver {
-      int (*pre_process)(void);
-      int (*process)(void);
-      int (*post_process)(void);
+      int (*pre_process)(struct list_head *variable_bank
+                         struct list_head *update_bank);
+      int (*process)(struct list_head *variable_bank
+                     struct list_head *update_bank);
+      int (*post_process)(struct list_head *variable_bank
+                          struct list_head *update_bank);
       int (*validate)(struct secvar *var);
       const char *compatible;
   };
@@ -174,11 +220,12 @@ variable update process logic. Unlike the other two hooks, this hook
 must be defined, or secure variable initialization will halt.
 
 This hook is expected to iterate through any variables contained in
-the update bank list, add any variables to the variable bank list as
-the backend seems appropriate. NOTE: the state of these bank lists
-will be written to persistent storage as-is, so for example, if the
-update bank should be cleared, it should be done prior to returning
-from this hook.
+the ``update_bank`` list argument, add any variables to the
+``variable_bank`` list argument as the backend seems appropriate.
+
+NOTE: the state of these bank lists will be written to persistent
+storage as-is, so for example, if the update bank should be cleared,
+it should be done prior to returning from this hook.
 
 Unlike the other two hooks, this hook may return a series of return
 codes indicating various status situations. This return code is
@@ -228,7 +275,8 @@ step. Like ``pre_process``, it may be set to ``NULL`` if unused.
 
 This hook is called AFTER performing any writes to storage, and AFTER
 locking the persistant storage. Any changes to the bank lists in this
-hook will NOT be persisted.
+hook will NOT be persisted to storage (unless explicitly done by the
+backend driver).
 
 Any error code returned by this hook will be treated as a failure, and
 halt secure variable initialization.
@@ -251,6 +299,8 @@ feedback to the caller on proposed variable validity.
 This hook should return ``OPAL_SUCCESS`` if the validity check passes.
 Any other return code is treated as a failure, and will be passed
 through the ``enqueue_update`` call.
+TODO: this might not be accurate anymore, we deferred this feature.
+TODO: may want to shelve this section until it is implemented
 
 Example usage:
  * check for valid payload data structure
