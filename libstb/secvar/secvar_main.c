@@ -43,7 +43,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	 * therefore we don't even attempt to continue */
 	rc = secvar_storage.store_init();
 	if (rc)
-		abort();
+		secureboot_enforce();
 
 	/* Failures here may be recoverable (PNOR was corrupted, restore from backup)
 	 * so we want to boot up to skiroot to give the user a chance to fix */
