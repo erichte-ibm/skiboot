@@ -23,8 +23,6 @@
 #include <ipmi.h>
 #include <direct-controls.h>
 #include <nvram.h>
-#include <types.h>
-#include <secureboot.h>
 
 /* Flag tested by the OPAL entry code */
 static volatile bool fast_boot_release;
@@ -108,12 +106,6 @@ void fast_reboot(void)
 	if (chip_quirk(QUIRK_NO_DIRECT_CTL)) {
 		prlog(PR_DEBUG,
 		      "RESET: Fast reboot disabled by quirk\n");
-		return;
-	}
-
-	if (is_fw_secureboot()) {
-		prlog(PR_DEBUG,
-		      "RESET: Fast reboot disabled by FW secureboot\n");
 		return;
 	}
 
