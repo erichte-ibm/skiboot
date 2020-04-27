@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <skiboot.h>
 #include <opal.h>
+#include <libstb/secureboot.h>
 #include "secvar.h"
 #include "secvar_devtree.h"
 
