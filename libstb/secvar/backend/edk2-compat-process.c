@@ -153,13 +153,12 @@ static int get_esl_cert(const char *buf, size_t buflen, char **cert)
 /* Extracts size of the PKCS7 signed data embedded in the
  * struct Authentication 2 Descriptor Header.
  */
-static int get_pkcs7_len(struct efi_variable_authentication_2 *auth)
+static int get_pkcs7_len(const struct efi_variable_authentication_2 *auth)
 {
 	uint32_t dw_length;
 	size_t size;
 
-	if (!auth)
-		return OPAL_PARAMETER;
+	assert(auth != NULL);
 
 	dw_length = le32_to_cpu(auth->auth_info.hdr.dw_length);
 	size = dw_length - (sizeof(auth->auth_info.hdr.dw_length)
