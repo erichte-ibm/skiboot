@@ -169,16 +169,17 @@ static int get_pkcs7_len(const struct efi_variable_authentication_2 *auth)
 	return size;
 }
 
-int get_auth_descriptor2(void *buf, size_t buflen, char **auth_buffer)
+int get_auth_descriptor2(const void *buf, size_t buflen, char **auth_buffer)
 {
-	struct efi_variable_authentication_2 *auth = NULL;
-	size_t auth_buffer_size;
+	const struct efi_variable_authentication_2 *auth = buf;
+	int auth_buffer_size;
 	int len;
 
-	if (buflen < sizeof(struct efi_variable_authentication_2))
+	if (buflen < sizeof(struct efi_variable_authentication_2)
+	    || !buf)
 			return OPAL_PARAMETER;
 
-	auth = buf;
+	assert(auth_buffer != NULL);
 
 	len = get_pkcs7_len(auth);
 
@@ -186,19 +187,14 @@ int get_auth_descriptor2(void *buf, size_t buflen, char **auth_buffer)
 	if (len <= 0)
 		return OPAL_PARAMETER;
 
-	if (!auth_buffer)
-		return OPAL_PARAMETER;
-
 	auth_buffer_size = sizeof(auth->timestamp) + sizeof(auth->auth_info.hdr)
 			   + sizeof(auth->auth_info.cert_type) + len;
-
-	if (auth_buffer_size <= 0)
-		return OPAL_PARAMETER;
 
 	*auth_buffer = zalloc(auth_buffer_size);
 	if (!(*auth_buffer))
 		return OPAL_NO_MEM;
 
+	/* Extracts the auth descriptor from data excluding new ESL data */
 	memcpy(*auth_buffer, buf, auth_buffer_size);
 
 	return auth_buffer_size;
@@ -612,6 +608,7 @@ int process_update(struct secvar_node *update, char **newesl,
 	int rc = 0;
 	int i;
 
+	/* We need to split data into authentication descriptor and new ESL */
 	auth_buffer_size = get_auth_descriptor2(update->var->data,
 						update->var->data_size,
 						&auth_buffer);

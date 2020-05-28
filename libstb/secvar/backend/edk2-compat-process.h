@@ -39,7 +39,7 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
  * auth_buffer and returns the size of the buffer. Please refer to
  * edk2.h for details on Authentication 2 Descriptor
  */
-int get_auth_descriptor2(void *buf, size_t buflen, char **auth_buffer);
+int get_auth_descriptor2(const void *buf, size_t buflen, char **auth_buffer);
 
 /* Check the format of the ESL */
 int validate_esl_list(char *key, char *esl, size_t size);
