@@ -12,6 +12,7 @@
 #include <ccan/endian/endian.h>
 #include <mbedtls/error.h>
 #include <device.h>
+#include <assert.h>
 #include "libstb/crypto/pkcs7/pkcs7.h"
 #include "edk2.h"
 #include "../secvar.h"
@@ -86,61 +87,63 @@ static void get_key_authority(const char *ret[3], const char *key)
 	ret[i] = NULL;
 }
 
-/* Returns the size of the complete ESL. */
-static int get_esl_signature_list_size(char *buf, size_t buflen)
+static EFI_SIGNATURE_LIST* get_esl_signature_list(const char *buf, size_t buflen)
 {
-	EFI_SIGNATURE_LIST list;
+	EFI_SIGNATURE_LIST *list = NULL;
 
-	if (buflen < sizeof(EFI_SIGNATURE_LIST))
+	if (buflen < sizeof(EFI_SIGNATURE_LIST) || !buf)
+		return NULL;
+
+	list = (EFI_SIGNATURE_LIST *)buf;
+
+	return list;
+}
+
+/* Returns the size of the complete ESL. */
+static int32_t get_esl_signature_list_size(const char *buf, size_t buflen)
+{
+	EFI_SIGNATURE_LIST *list = get_esl_signature_list(buf, buflen);
+
+	if (!list)
 		return OPAL_PARAMETER;
 
-	memcpy(&list, buf, sizeof(EFI_SIGNATURE_LIST));
-
 	prlog(PR_DEBUG, "size of signature list size is %u\n",
-			le32_to_cpu(list.SignatureListSize));
+			le32_to_cpu(list->SignatureListSize));
 
-	return le32_to_cpu(list.SignatureListSize);
+	return le32_to_cpu(list->SignatureListSize);
 }
 
 /* Copies the certificate from the ESL into cert buffer and returns the size
  * of the certificate
  */
-static int get_esl_cert(char *buf, size_t buflen, char **cert)
+static int get_esl_cert(const char *buf, size_t buflen, char **cert)
 {
 	size_t sig_data_offset;
 	size_t size;
-	EFI_SIGNATURE_LIST list;
+	EFI_SIGNATURE_LIST *list = get_esl_signature_list(buf, buflen);
 
-	if (buflen < sizeof(EFI_SIGNATURE_LIST))
+	if (!list)
 		return OPAL_PARAMETER;
 
-	memcpy(&list, buf, sizeof(EFI_SIGNATURE_LIST));
+	assert(cert != NULL);
 
-	size = le32_to_cpu(list.SignatureSize) - sizeof(uuid_t);
-	/* No certificate in the ESL */
-	if (size <= 0)
-		return OPAL_PERMISSION;
+	size = le32_to_cpu(list->SignatureSize) - sizeof(uuid_t);
 
-	if (!cert)
+	prlog(PR_DEBUG,"size of signature list size is %u\n",
+			le32_to_cpu(list->SignatureListSize));
+	prlog(PR_DEBUG, "size of signature header size is %u\n",
+			le32_to_cpu(list->SignatureHeaderSize));
+	prlog(PR_DEBUG, "size of signature size is %u\n",
+			le32_to_cpu(list->SignatureSize));
+
+	sig_data_offset = sizeof(EFI_SIGNATURE_LIST) + le32_to_cpu(list->SignatureHeaderSize)
+		+ 16 * sizeof(uint8_t);
+	if (sig_data_offset > buflen)
 		return OPAL_PARAMETER;
 
 	*cert = zalloc(size);
 	if (!(*cert))
 		return OPAL_NO_MEM;
-
-	prlog(PR_DEBUG,"size of signature list size is %u\n",
-			le32_to_cpu(list.SignatureListSize));
-	prlog(PR_DEBUG, "size of signature header size is %u\n",
-			le32_to_cpu(list.SignatureHeaderSize));
-	prlog(PR_DEBUG, "size of signature size is %u\n",
-			le32_to_cpu(list.SignatureSize));
-
-	sig_data_offset = sizeof(list) + le32_to_cpu(list.SignatureHeaderSize)
-		+ 16 * sizeof(uint8_t);
-	if (sig_data_offset > buflen) {
-		free(*cert);
-		return OPAL_PARAMETER;
-	}
 
 	memcpy(*cert, buf + sig_data_offset, size);
 
@@ -210,8 +213,8 @@ int validate_esl_list(char *key, char *esl, size_t size)
 	mbedtls_x509_crt x509;
 	char *x509_buf = NULL;
 	int eslvarsize = size;
-	int rc = OPAL_SUCCESS;
 	int eslsize;
+	int rc = OPAL_SUCCESS;
 	int offset = 0;
 
 	while (eslvarsize > 0) {
@@ -228,7 +231,6 @@ int validate_esl_list(char *key, char *esl, size_t size)
 			break;
 		}
 
-		/* Extract the certificate from the ESL */
 		signing_cert_size = get_esl_cert(esl, eslvarsize, &signing_cert);
 		if (signing_cert_size < 0) {
 			rc = signing_cert_size;
