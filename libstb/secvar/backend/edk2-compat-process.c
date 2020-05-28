@@ -51,8 +51,8 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 	return 0;
 }
 
-/* Converts utf8 string to ucs2 */
-static char *utf8_to_ucs2(const char *key, size_t keylen)
+/* Expand char to wide character size */
+static char *char_to_wchar(const char *key, size_t keylen)
 {
 	int i;
 	char *str;
@@ -571,9 +571,9 @@ static int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
 	else
 		return OPAL_INTERNAL_ERROR;
 
-	/* Convert utf8 name to ucs2 width */
+	/* Expand char name to wide character width */
 	varlen = strlen(key) * 2;
-	wkey = utf8_to_ucs2(key, strlen(key));
+	wkey = char_to_wchar(key, strlen(key));
 
 	/* Prepare the single buffer */
 	*buffer_size = varlen + UUID_SIZE + sizeof(attr)
