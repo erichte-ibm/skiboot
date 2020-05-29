@@ -595,15 +595,12 @@ static int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
 	return offset;
 }
 
-bool is_pkcs7_sig_format(void *data)
+bool is_pkcs7_sig_format(const void *data)
 {
-	struct efi_variable_authentication_2 *auth = data;
+	const struct efi_variable_authentication_2 *auth = data;
 	uuid_t pkcs7_guid = EFI_CERT_TYPE_PKCS7_GUID;
 
-	if(!(memcmp(&auth->auth_info.cert_type, &pkcs7_guid, 16) == 0))
-		return false;
-
-	return true;
+	return !memcmp(&auth->auth_info.cert_type, &pkcs7_guid, 16);
 }
 
 int process_update(struct secvar_node *update, char **newesl,
