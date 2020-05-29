@@ -379,7 +379,7 @@ int check_timestamp(const char *key, const struct efi_time *timestamp,
 }
 
 /* Extract PKCS7 from the authentication header */
-static int get_pkcs7(struct efi_variable_authentication_2 *auth,
+static int get_pkcs7(const struct efi_variable_authentication_2 *auth,
 		     mbedtls_pkcs7 **pkcs7)
 {
 	char *checkpkcs7cert = NULL;
@@ -398,9 +398,7 @@ static int get_pkcs7(struct efi_variable_authentication_2 *auth,
 		return OPAL_NO_MEM;
 
 	mbedtls_pkcs7_init(*pkcs7);
-	rc = mbedtls_pkcs7_parse_der(
-			(const unsigned char *)auth->auth_info.cert_data,
-			(const unsigned int)len, *pkcs7);
+	rc = mbedtls_pkcs7_parse_der( auth->auth_info.cert_data, len, *pkcs7);
 	if (rc) {
 		prlog(PR_ERR, "Parsing pkcs7 failed %04x\n", rc);
 		mbedtls_pkcs7_free(*pkcs7);
