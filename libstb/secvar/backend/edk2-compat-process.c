@@ -284,26 +284,25 @@ int validate_esl_list(char *key, char *esl, size_t size)
 /* Get the timestamp for the last update of the give key */
 static struct efi_time *get_last_timestamp(const char *key, char *last_timestamp)
 {
-	u8 off;
+	struct efi_time *timestamp = (struct efi_time*)last_timestamp;
 
 	if (!last_timestamp)
 		return NULL;
 
 	if (!strncmp(key, "PK", 3))
-		off = 0;
+		return &timestamp[0];
 	else if (!strncmp(key, "KEK", 4))
-		off = 1;
+		return &timestamp[1];
 	else if (!strncmp(key, "db", 3))
-		off = 2;
+		return &timestamp[2];
 	else if (!strncmp(key, "dbx", 4))
-		off = 3;
+		return &timestamp[3];
 	else
 		return NULL;
 
-	return &((struct efi_time *)last_timestamp)[off];
 }
 
-int update_timestamp(char *key, struct efi_time *timestamp, char *last_timestamp)
+int update_timestamp(const char *key, const struct efi_time *timestamp, char *last_timestamp)
 {
 	struct efi_time *prev;
 
@@ -319,10 +318,36 @@ int update_timestamp(char *key, struct efi_time *timestamp, char *last_timestamp
 	return OPAL_SUCCESS;
 }
 
-int check_timestamp(char *key, struct efi_time *timestamp,
+static uint64_t* unpack_timestamp(const struct efi_time *timestamp)
+{
+	void *val;
+
+	u16 year = le32_to_cpu(timestamp->year);
+
+	val = zalloc(sizeof(uint64_t));
+	if (!val)
+		return NULL;
+
+	/* pad1, nanosecond, timezone, daylight and pad2 are meant to be zero */
+	memcpy(val, &(timestamp->pad1), 1);
+	memcpy(val+1, &(timestamp->second), 1);
+	memcpy(val+2, &(timestamp->minute), 1);
+	memcpy(val+3, &(timestamp->hour), 1);
+	memcpy(val+4, &(timestamp->day), 1);
+	memcpy(val+5, &(timestamp->month), 1);
+	memcpy(val+6, &year, 2);
+
+	prlog(PR_DEBUG, "val is %llx\n", ((uint64_t*)val));
+	return ((uint64_t*)val);
+}
+
+int check_timestamp(const char *key, const struct efi_time *timestamp,
 		    char *last_timestamp)
 {
 	struct efi_time *prev;
+	uint64_t *new = NULL;
+	uint64_t *last = NULL;
+
 
 	prev = get_last_timestamp(key, last_timestamp);
 	if (prev == NULL)
@@ -333,41 +358,16 @@ int check_timestamp(char *key, struct efi_time *timestamp,
 			timestamp->day);
 	prlog(PR_DEBUG, "prev year is %d month %d day %d\n",
 			le16_to_cpu(prev->year), prev->month, prev->day);
-	if (le16_to_cpu(timestamp->year) > le16_to_cpu(prev->year))
-		return OPAL_SUCCESS;
-	if (le16_to_cpu(timestamp->year) < le16_to_cpu(prev->year))
-		return OPAL_PERMISSION;
 
-	if (timestamp->month > prev->month)
-		return OPAL_SUCCESS;
-	if (timestamp->month < prev->month)
-		return OPAL_PERMISSION;
+	new = unpack_timestamp(timestamp);
+	last = unpack_timestamp(prev);
+	if (!new || !last)
+		return OPAL_NO_MEM;
 
-	if (timestamp->day > prev->day)
-		return OPAL_SUCCESS;
-	if (timestamp->day < prev->day)
-		return OPAL_PERMISSION;
-
-	if (timestamp->hour > prev->hour)
-		return OPAL_SUCCESS;
-	if (timestamp->hour < prev->hour)
-		return OPAL_PERMISSION;
-
-	if (timestamp->minute > prev->minute)
-		return OPAL_SUCCESS;
-	if (timestamp->minute < prev->minute)
-		return OPAL_PERMISSION;
-
-	if (timestamp->second > prev->second)
+	if (*new > *last)
 		return OPAL_SUCCESS;
 
-	/* Time less than or equal to is considered as replay*/
-	if (timestamp->second <= prev->second)
-		return OPAL_PERMISSION;
-
-	/* nanosecond, timezone, daylight and pad2 are meant to be zero */
-
-	return OPAL_SUCCESS;
+	return OPAL_PERMISSION;
 }
 
 /* Extract PKCS7 from the authentication header */

@@ -45,10 +45,10 @@ int get_auth_descriptor2(const void *buf, size_t buflen, char **auth_buffer);
 int validate_esl_list(char *key, char *esl, size_t size);
 
 /* Update the TS variable with the new timestamp */
-int update_timestamp(char *key, struct efi_time *timestamp, char *last_timestamp);
+int update_timestamp(const char *key, const struct efi_time *timestamp, char *last_timestamp);
 
 /* Check the new timestamp against the timestamp last update was done */
-int check_timestamp(char *key, struct efi_time *timestamp, char *last_timestamp);
+int check_timestamp(const char *key, const struct efi_time *timestamp, char *last_timestamp);
 
 /* Check the GUID of the data type */
 bool is_pkcs7_sig_format(void *data);
