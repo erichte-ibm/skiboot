@@ -428,9 +428,9 @@ static int get_pkcs7(const struct efi_variable_authentication_2 *auth,
 }
 
 /* Verify the PKCS7 signature on the signed data. */
-static int verify_signature(struct efi_variable_authentication_2 *auth,
-			    char *newcert, size_t new_data_size,
-			    struct secvar *avar)
+static int verify_signature(const struct efi_variable_authentication_2 *auth,
+			    const char *newcert, const size_t new_data_size,
+			    const struct secvar *avar)
 {
 	mbedtls_pkcs7 *pkcs7 = NULL;
 	mbedtls_x509_crt x509;
