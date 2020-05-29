@@ -51,7 +51,7 @@ int update_timestamp(const char *key, const struct efi_time *timestamp, char *la
 int check_timestamp(const char *key, const struct efi_time *timestamp, char *last_timestamp);
 
 /* Check the GUID of the data type */
-bool is_pkcs7_sig_format(void *data);
+bool is_pkcs7_sig_format(const void *data);
 
 /* Process the update */
 int process_update(struct secvar_node *update, char **newesl, int *neweslsize,
