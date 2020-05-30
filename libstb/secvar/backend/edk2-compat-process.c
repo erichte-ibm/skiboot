@@ -675,15 +675,13 @@ int process_update(struct secvar_node *update, char **newesl,
 	/* Try for all the authorities that are allowed to sign.
 	 * For eg. db/dbx can be signed by both PK or KEK
 	 */
-	while (key_authority[i] != NULL) {
+	for (i = 0; key_authority[i] != NULL; i++) {
 		prlog(PR_DEBUG, "key is %s\n", update->var->key);
 		prlog(PR_DEBUG, "key authority is %s\n", key_authority[i]);
 		anode = find_secvar(key_authority[i], strlen(key_authority[i]) + 1,
 				    bank);
-		if (!anode || !anode->var->data_size) {
-			i++;
+		if (!anode || !anode->var->data_size)
 			continue;
-		}
 
 		/* Verify the signature */
 		rc = verify_signature(auth, tbhbuffer, tbhbuffersize,
@@ -692,7 +690,6 @@ int process_update(struct secvar_node *update, char **newesl,
 		/* Break if signature verification is successful */
 		if (rc == OPAL_SUCCESS)
 			break;
-		i++;
 	}
 
 out:
