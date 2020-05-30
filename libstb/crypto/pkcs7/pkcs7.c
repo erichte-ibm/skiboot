@@ -481,6 +481,19 @@ int mbedtls_pkcs7_signed_data_verify( mbedtls_pkcs7 *pkcs7, mbedtls_x509_crt *ce
        return ( ret );
 }
 
+int mbedtls_pkcs7_signed_hash_verify( mbedtls_pkcs7 *pkcs7, mbedtls_x509_crt *cert, const unsigned char *hash, int hashlen)
+{
+
+       int ret;
+       mbedtls_pk_context pk_cxt = cert->pk;
+
+       ret = mbedtls_pk_verify( &pk_cxt, MBEDTLS_MD_SHA256, hash, hashlen, pkcs7->signed_data.signers.sig.p, pkcs7->signed_data.signers.sig.len );
+
+       mbedtls_printf("Verification return code is %04x\n", ret);
+
+       return ( ret );
+}
+
 /*
  * Unallocate all pkcs7 data
  */
