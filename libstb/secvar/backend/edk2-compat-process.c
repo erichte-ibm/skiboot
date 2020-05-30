@@ -337,7 +337,7 @@ static uint64_t* unpack_timestamp(const struct efi_time *timestamp)
 	memcpy(val+5, &(timestamp->month), 1);
 	memcpy(val+6, &year, 2);
 
-	prlog(PR_DEBUG, "val is %llx\n", ((uint64_t*)val));
+	prlog(PR_DEBUG, "val is %llx\n", *((uint64_t*)val));
 	return ((uint64_t*)val);
 }
 
@@ -434,6 +434,8 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 	int eslvarsize;
 	int eslsize;
 	int offset = 0;
+//	unsigned char hash[32];
+//	const mbedtls_md_info_t *md_info;
 
 	if (!auth)
 		return OPAL_PARAMETER;
@@ -495,8 +497,12 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 		x509_buf = NULL;
 
 		/* Verify the signature */
-		rc = mbedtls_pkcs7_signed_data_verify(pkcs7, &x509, newcert,
-						      new_data_size);
+//		md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
+//
+	//	mbedtls_md( md_info, newcert, new_data_size, hash );
+
+
+		rc = mbedtls_pkcs7_signed_hash_verify(pkcs7, &x509, newcert, new_data_size);
 
 		/* If you find a signing certificate, you are done */
 		if (rc == 0) {
@@ -534,15 +540,20 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
  * Returns number of bytes in the new buffer, else negative error
  * code.
  */
-static int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
-			      char **buffer, size_t *buffer_size,
+static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
 			      struct efi_time *timestamp)
 {
 	le32 attr = cpu_to_le32(SECVAR_ATTRIBUTES);
-	size_t offset = 0;
 	size_t varlen;
 	char *wkey;
 	uuid_t guid;
+	unsigned char *hash;
+	const mbedtls_md_info_t *md_info;
+	mbedtls_md_context_t ctx;
+
+	hash = zalloc(32);
+	if (!hash)
+		return NULL;
 
 	if (key_equals(key, "PK")
 	    || key_equals(key, "KEK"))
@@ -551,34 +562,30 @@ static int get_data_to_verify(char *key, char *new_data, size_t new_data_size,
 	    || key_equals(key, "dbx"))
 		guid = EFI_IMAGE_SECURITY_DATABASE_GUID;
 	else
-		return OPAL_INTERNAL_ERROR;
+		return NULL;
 
 	/* Expand char name to wide character width */
 	varlen = strlen(key) * 2;
 	wkey = char_to_wchar(key, strlen(key));
 
 	/* Prepare the single buffer */
-	*buffer_size = varlen + UUID_SIZE + sizeof(attr)
-		       + sizeof(struct efi_time) + new_data_size;
-	*buffer = zalloc(*buffer_size);
-	if (!*buffer)
-		return OPAL_NO_MEM;
+	md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
 
-	memcpy(*buffer + offset, wkey, varlen);
-	offset = offset + varlen;
-	memcpy(*buffer + offset, &guid, sizeof(guid));
-	offset = offset + sizeof(guid);
-	memcpy(*buffer + offset, &attr, sizeof(attr));
-	offset = offset + sizeof(attr);
-	memcpy(*buffer + offset, timestamp , sizeof(struct efi_time));
-	offset = offset + sizeof(struct efi_time);
+	mbedtls_md_init(&ctx);
+	mbedtls_md_setup(&ctx, md_info, 0);
+	mbedtls_md_starts(&ctx);
+	mbedtls_md_update(&ctx, wkey, varlen);
+	mbedtls_md_update(&ctx, (const unsigned char *)&guid, sizeof(guid));
+	mbedtls_md_update(&ctx, (const unsigned char *)&attr, sizeof(attr));
+	mbedtls_md_update(&ctx, (const unsigned char *)timestamp, sizeof(struct efi_time));
 
-	memcpy(*buffer + offset, new_data, new_data_size);
-	offset = offset + new_data_size;
+	mbedtls_md_update(&ctx, new_data, new_data_size);
 
+	mbedtls_md_finish(&ctx, hash);
 	free(wkey);
 
-	return offset;
+	mbedtls_md_free(&ctx);
+	return hash;
 }
 
 bool is_pkcs7_sig_format(const void *data)
@@ -658,8 +665,8 @@ int process_update(struct secvar_node *update, char **newesl,
 	}
 
 	/* Prepare the data to be verified */
-	rc = get_data_to_verify(update->var->key, *newesl, *new_data_size,
-				&tbhbuffer, &tbhbuffersize, timestamp);
+	tbhbuffer = get_hash_to_verify(update->var->key, *newesl, *new_data_size,
+				timestamp);
 
 	/* Get the authority to verify the signature */
 	get_key_authority(key_authority, update->var->key);
