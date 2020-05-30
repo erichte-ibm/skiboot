@@ -318,35 +318,32 @@ int update_timestamp(const char *key, const struct efi_time *timestamp, char *la
 	return OPAL_SUCCESS;
 }
 
-static uint64_t* unpack_timestamp(const struct efi_time *timestamp)
+static uint64_t unpack_timestamp(const struct efi_time *timestamp)
 {
-	void *val;
+	uint64_t val;
+	void *tmp = &val;
 
 	u16 year = le32_to_cpu(timestamp->year);
 
-	val = zalloc(sizeof(uint64_t));
-	if (!val)
-		return NULL;
-
 	/* pad1, nanosecond, timezone, daylight and pad2 are meant to be zero */
-	memcpy(val, &(timestamp->pad1), 1);
-	memcpy(val+1, &(timestamp->second), 1);
-	memcpy(val+2, &(timestamp->minute), 1);
-	memcpy(val+3, &(timestamp->hour), 1);
-	memcpy(val+4, &(timestamp->day), 1);
-	memcpy(val+5, &(timestamp->month), 1);
-	memcpy(val+6, &year, 2);
+	memcpy(tmp, &(timestamp->pad1), 1);
+	memcpy(tmp+1, &(timestamp->second), 1);
+	memcpy(tmp+2, &(timestamp->minute), 1);
+	memcpy(tmp+3, &(timestamp->hour), 1);
+	memcpy(tmp+4, &(timestamp->day), 1);
+	memcpy(tmp+5, &(timestamp->month), 1);
+	memcpy(tmp+6, &year, 2);
 
-	prlog(PR_DEBUG, "val is %llx\n", *((uint64_t*)val));
-	return ((uint64_t*)val);
+	prlog(PR_DEBUG, "val is %llx\n", val);
+	return val;
 }
 
 int check_timestamp(const char *key, const struct efi_time *timestamp,
 		    char *last_timestamp)
 {
 	struct efi_time *prev;
-	uint64_t *new = NULL;
-	uint64_t *last = NULL;
+	uint64_t new;
+	uint64_t last;
 
 
 	prev = get_last_timestamp(key, last_timestamp);
@@ -361,10 +358,8 @@ int check_timestamp(const char *key, const struct efi_time *timestamp,
 
 	new = unpack_timestamp(timestamp);
 	last = unpack_timestamp(prev);
-	if (!new || !last)
-		return OPAL_NO_MEM;
 
-	if (*new > *last)
+	if (new > last)
 		return OPAL_SUCCESS;
 
 	return OPAL_PERMISSION;
