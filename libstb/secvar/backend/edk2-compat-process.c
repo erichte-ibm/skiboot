@@ -575,7 +575,8 @@ static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
 	mbedtls_md_update(&ctx, wkey, varlen);
 	mbedtls_md_update(&ctx, (const unsigned char *)&guid, sizeof(guid));
 	mbedtls_md_update(&ctx, (const unsigned char *)&attr, sizeof(attr));
-	mbedtls_md_update(&ctx, (const unsigned char *)timestamp, sizeof(struct efi_time));
+	mbedtls_md_update(&ctx, (const unsigned char *)timestamp,
+			  sizeof(struct efi_time));
 	mbedtls_md_update(&ctx, new_data, new_data_size);
 
 	mbedtls_md_finish(&ctx, hash);
