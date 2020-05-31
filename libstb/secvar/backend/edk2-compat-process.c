@@ -44,7 +44,6 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 	else
 		node->flags |= SECVAR_FLAG_VOLATILE;
 
-        /* Is it required to be set everytime ? */
 	if ((!strncmp(secvar->key, "PK", 3))
 	     || (!strncmp(secvar->key, "HWKH", 5)))
 		node->flags |= SECVAR_FLAG_PRIORITY;
@@ -429,8 +428,6 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 	int eslvarsize;
 	int eslsize;
 	int offset = 0;
-//	unsigned char hash[32];
-//	const mbedtls_md_info_t *md_info;
 
 	if (!auth)
 		return OPAL_PARAMETER;
@@ -491,12 +488,6 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 		free(x509_buf);
 		x509_buf = NULL;
 
-		/* Verify the signature */
-//		md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
-//
-	//	mbedtls_md( md_info, newcert, new_data_size, hash );
-
-
 		rc = mbedtls_pkcs7_signed_hash_verify(pkcs7, &x509, newcert, new_data_size);
 
 		/* If you find a signing certificate, you are done */
@@ -546,10 +537,6 @@ static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
 	const mbedtls_md_info_t *md_info;
 	mbedtls_md_context_t ctx;
 
-	hash = zalloc(32);
-	if (!hash)
-		return NULL;
-
 	if (key_equals(key, "PK")
 	    || key_equals(key, "KEK"))
 		guid = EFI_GLOBAL_VARIABLE_GUID;
@@ -563,9 +550,11 @@ static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
 	varlen = strlen(key) * 2;
 	wkey = char_to_wchar(key, strlen(key));
 
-	/* Prepare the single buffer */
-	md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
+	hash = zalloc(32);
+	if (!hash)
+		return NULL;
 
+	md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
 	mbedtls_md_init(&ctx);
 	mbedtls_md_setup(&ctx, md_info, 0);
 	mbedtls_md_starts(&ctx);
@@ -573,13 +562,13 @@ static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
 	mbedtls_md_update(&ctx, (const unsigned char *)&guid, sizeof(guid));
 	mbedtls_md_update(&ctx, (const unsigned char *)&attr, sizeof(attr));
 	mbedtls_md_update(&ctx, (const unsigned char *)timestamp, sizeof(struct efi_time));
-
 	mbedtls_md_update(&ctx, new_data, new_data_size);
 
 	mbedtls_md_finish(&ctx, hash);
-	free(wkey);
 
+	free(wkey);
 	mbedtls_md_free(&ctx);
+
 	return hash;
 }
 
