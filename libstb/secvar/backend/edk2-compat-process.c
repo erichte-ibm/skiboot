@@ -44,8 +44,7 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 	else
 		node->flags |= SECVAR_FLAG_VOLATILE;
 
-	if ((!strncmp(secvar->key, "PK", 3))
-	     || (!strncmp(secvar->key, "HWKH", 5)))
+	if (key_equals(secvar->key, "PK") || key_equals(secvar->key, "HWKH"))
 		node->flags |= SECVAR_FLAG_PRIORITY;
 
 	return 0;
@@ -294,17 +293,16 @@ static struct efi_time *get_last_timestamp(const char *key, char *last_timestamp
 	if (!last_timestamp)
 		return NULL;
 
-	if (!strncmp(key, "PK", 3))
+	if (key_equals(key, "PK"))
 		return &timestamp[0];
-	else if (!strncmp(key, "KEK", 4))
+	else if (key_equals(key, "KEK"))
 		return &timestamp[1];
-	else if (!strncmp(key, "db", 3))
+	else if (key_equals(key, "db"))
 		return &timestamp[2];
-	else if (!strncmp(key, "dbx", 4))
+	else if (key_equals(key, "dbx"))
 		return &timestamp[3];
 	else
 		return NULL;
-
 }
 
 int update_timestamp(const char *key, const struct efi_time *timestamp, char *last_timestamp)
