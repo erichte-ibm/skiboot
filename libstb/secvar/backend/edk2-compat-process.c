@@ -406,7 +406,6 @@ static int get_pkcs7(const struct efi_variable_authentication_2 *auth,
 	}
 
 	free(checkpkcs7cert);
-	mbedtls_pkcs7_free(*pkcs7);
 
 	return rc;
 }
