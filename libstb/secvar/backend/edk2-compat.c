@@ -126,7 +126,7 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		return OPAL_EMPTY;
 	}
 
-	/* 
+	/*
 	 * Make a working copy of variable bank that is updated
 	 * during process
 	 */
