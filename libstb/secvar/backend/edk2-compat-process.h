@@ -39,10 +39,11 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
  * auth_buffer and returns the size of the buffer. Please refer to
  * edk2.h for details on Authentication 2 Descriptor
  */
-int get_auth_descriptor2(const void *buf, size_t buflen, char **auth_buffer);
+int get_auth_descriptor2(const void *buf, const size_t buflen,
+			 char **auth_buffer);
 
 /* Check the format of the ESL */
-int validate_esl_list(char *key, char *esl, size_t size);
+int validate_esl_list(const char *key, const char *esl, const size_t size);
 
 /* Update the TS variable with the new timestamp */
 int update_timestamp(const char *key, const struct efi_time *timestamp, char *last_timestamp);
@@ -54,8 +55,8 @@ int check_timestamp(const char *key, const struct efi_time *timestamp, char *las
 bool is_pkcs7_sig_format(const void *data);
 
 /* Process the update */
-int process_update(struct secvar_node *update, char **newesl, int *neweslsize,
-		   struct efi_time *timestamp, struct list_head *bank,
-		   char *last_timestamp);
+int process_update(const struct secvar_node *update, char **newesl,
+		   int *neweslsize, struct efi_time *timestamp,
+		   struct list_head *bank, char *last_timestamp);
 
 #endif

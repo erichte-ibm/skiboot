@@ -21,7 +21,7 @@
 bool setup_mode;
 
 int update_variable_in_bank(struct secvar *secvar, const char *data,
-			    uint64_t dsize, struct list_head *bank)
+			    const uint64_t dsize, struct list_head *bank)
 {
 	struct secvar_node *node;
 
@@ -52,7 +52,7 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
 }
 
 /* Expand char to wide character size */
-static char *char_to_wchar(const char *key, size_t keylen)
+static char *char_to_wchar(const char *key, const size_t keylen)
 {
 	int i;
 	char *str;
@@ -99,7 +99,7 @@ static EFI_SIGNATURE_LIST* get_esl_signature_list(const char *buf, size_t buflen
 }
 
 /* Returns the size of the complete ESL. */
-static int32_t get_esl_signature_list_size(const char *buf, size_t buflen)
+static int32_t get_esl_signature_list_size(const char *buf, const size_t buflen)
 {
 	EFI_SIGNATURE_LIST *list = get_esl_signature_list(buf, buflen);
 
@@ -112,10 +112,11 @@ static int32_t get_esl_signature_list_size(const char *buf, size_t buflen)
 	return le32_to_cpu(list->SignatureListSize);
 }
 
-/* Copies the certificate from the ESL into cert buffer and returns the size
+/* 
+ * Copies the certificate from the ESL into cert buffer and returns the size
  * of the certificate
  */
-static int get_esl_cert(const char *buf, size_t buflen, char **cert)
+static int get_esl_cert(const char *buf, const size_t buflen, char **cert)
 {
 	size_t sig_data_offset;
 	size_t size;
@@ -135,8 +136,9 @@ static int get_esl_cert(const char *buf, size_t buflen, char **cert)
 	prlog(PR_DEBUG, "size of signature size is %u\n",
 			le32_to_cpu(list->SignatureSize));
 
-	sig_data_offset = sizeof(EFI_SIGNATURE_LIST) + le32_to_cpu(list->SignatureHeaderSize)
-		+ 16 * sizeof(uint8_t);
+	sig_data_offset = sizeof(EFI_SIGNATURE_LIST)
+			  + le32_to_cpu(list->SignatureHeaderSize)
+			  + 16 * sizeof(uint8_t);
 	if (sig_data_offset > buflen)
 		return OPAL_PARAMETER;
 
@@ -144,12 +146,15 @@ static int get_esl_cert(const char *buf, size_t buflen, char **cert)
 	if (!(*cert))
 		return OPAL_NO_MEM;
 
+	/* Since buf can have more than one ESL, copy only the size calculated
+	 * to return single ESL */
 	memcpy(*cert, buf + sig_data_offset, size);
 
 	return size;
 }
 
-/* Extracts size of the PKCS7 signed data embedded in the
+/* 
+ * Extracts size of the PKCS7 signed data embedded in the
  * struct Authentication 2 Descriptor Header.
  */
 static int get_pkcs7_len(const struct efi_variable_authentication_2 *auth)
@@ -168,17 +173,16 @@ static int get_pkcs7_len(const struct efi_variable_authentication_2 *auth)
 	return size;
 }
 
-int get_auth_descriptor2(const void *buf, size_t buflen, char **auth_buffer)
+int get_auth_descriptor2(const void *buf, const size_t buflen, char **auth_buffer)
 {
 	const struct efi_variable_authentication_2 *auth = buf;
 	int auth_buffer_size;
 	int len;
 
+	assert(auth_buffer != NULL);
 	if (buflen < sizeof(struct efi_variable_authentication_2)
 	    || !buf)
 			return OPAL_PARAMETER;
-
-	assert(auth_buffer != NULL);
 
 	len = get_pkcs7_len(auth);
 
@@ -193,13 +197,16 @@ int get_auth_descriptor2(const void *buf, size_t buflen, char **auth_buffer)
 	if (!(*auth_buffer))
 		return OPAL_NO_MEM;
 
-	/* Extracts the auth descriptor from data excluding new ESL data */
+	/*
+	 * Data = auth descriptor + new ESL data.
+	 * Extracts only the auth descriptor from data.
+	 */
 	memcpy(*auth_buffer, buf, auth_buffer_size);
 
 	return auth_buffer_size;
 }
 
-int validate_esl_list(char *key, char *esl, size_t size)
+int validate_esl_list(const char *key, const char *esl, const size_t size)
 {
 	int count = 0;
 	int signing_cert_size;
@@ -309,6 +316,7 @@ int update_timestamp(const char *key, const struct efi_time *timestamp, char *la
 	if (prev == NULL)
 		return OPAL_INTERNAL_ERROR;
 
+	/* Update with new timestamp */
 	memcpy(prev, timestamp, sizeof(struct efi_time));
 
 	prlog(PR_DEBUG, "updated prev year is %d month %d day %d\n",
@@ -333,7 +341,6 @@ static uint64_t unpack_timestamp(const struct efi_time *timestamp)
 	memcpy(tmp+5, &(timestamp->month), 1);
 	memcpy(tmp+6, &year, 2);
 
-	prlog(PR_DEBUG, "val is %llx\n", val);
 	return val;
 }
 
@@ -343,7 +350,6 @@ int check_timestamp(const char *key, const struct efi_time *timestamp,
 	struct efi_time *prev;
 	uint64_t new;
 	uint64_t last;
-
 
 	prev = get_last_timestamp(key, last_timestamp);
 	if (prev == NULL)
@@ -520,22 +526,35 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 	return rc;
 }
 
-/* Create the single buffer
+/* 
+ * Create the hash of the buffer
  * name || vendor guid || attributes || timestamp || newcontent
  * which is submitted as signed by the user.
- * Returns number of bytes in the new buffer, else negative error
- * code.
+ * Returns the sha256 hash, else negative error code.
  */
-static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
-			      struct efi_time *timestamp)
+static char *get_hash_to_verify(const char *key, const char *new_data,
+				const size_t new_data_size,
+				const struct efi_time *timestamp)
 {
 	le32 attr = cpu_to_le32(SECVAR_ATTRIBUTES);
 	size_t varlen;
 	char *wkey;
 	uuid_t guid;
-	unsigned char *hash;
+	unsigned char *hash = NULL;
 	const mbedtls_md_info_t *md_info;
 	mbedtls_md_context_t ctx;
+	int rc;
+
+	md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
+	mbedtls_md_init(&ctx);
+
+	rc = mbedtls_md_setup(&ctx, md_info, 0);
+	if (rc)
+		goto out;
+
+	rc = mbedtls_md_starts(&ctx);
+	if (rc)
+		goto out;
 
 	if (key_equals(key, "PK")
 	    || key_equals(key, "KEK"))
@@ -549,27 +568,39 @@ static char *get_hash_to_verify(char *key, char *new_data, size_t new_data_size,
 	/* Expand char name to wide character width */
 	varlen = strlen(key) * 2;
 	wkey = char_to_wchar(key, strlen(key));
+	rc = mbedtls_md_update(&ctx, wkey, varlen);
+	free(wkey);
+	if (rc) 
+		goto out;
+
+	rc = mbedtls_md_update(&ctx, (const unsigned char *)&guid, sizeof(guid));
+	if (rc)
+		goto out;
+
+	rc = mbedtls_md_update(&ctx, (const unsigned char *)&attr, sizeof(attr));
+	if (rc)
+		goto out;
+
+	rc = mbedtls_md_update(&ctx, (const unsigned char *)timestamp,
+			       sizeof(struct efi_time));
+	if (rc)
+		goto out;
+
+	rc = mbedtls_md_update(&ctx, new_data, new_data_size);
+	if (rc)
+		goto out;
 
 	hash = zalloc(32);
 	if (!hash)
 		return NULL;
+	rc = mbedtls_md_finish(&ctx, hash);
+	if (rc) {
+		free(hash);
+		hash = NULL;
+	}
 
-	md_info = mbedtls_md_info_from_type( MBEDTLS_MD_SHA256 );
-	mbedtls_md_init(&ctx);
-	mbedtls_md_setup(&ctx, md_info, 0);
-	mbedtls_md_starts(&ctx);
-	mbedtls_md_update(&ctx, wkey, varlen);
-	mbedtls_md_update(&ctx, (const unsigned char *)&guid, sizeof(guid));
-	mbedtls_md_update(&ctx, (const unsigned char *)&attr, sizeof(attr));
-	mbedtls_md_update(&ctx, (const unsigned char *)timestamp,
-			  sizeof(struct efi_time));
-	mbedtls_md_update(&ctx, new_data, new_data_size);
-
-	mbedtls_md_finish(&ctx, hash);
-
-	free(wkey);
+out:
 	mbedtls_md_free(&ctx);
-
 	return hash;
 }
 
@@ -581,7 +612,7 @@ bool is_pkcs7_sig_format(const void *data)
 	return !memcmp(&auth->auth_info.cert_type, &pkcs7_guid, 16);
 }
 
-int process_update(struct secvar_node *update, char **newesl,
+int process_update(const struct secvar_node *update, char **newesl,
 		   int *new_data_size, struct efi_time *timestamp,
 		   struct list_head *bank, char *last_timestamp)
 {
@@ -652,12 +683,16 @@ int process_update(struct secvar_node *update, char **newesl,
 	/* Prepare the data to be verified */
 	tbhbuffer = get_hash_to_verify(update->var->key, *newesl, *new_data_size,
 				timestamp);
+	if (!tbhbuffer) {
+		rc = OPAL_INTERNAL_ERROR;
+		goto out;
+	}
 
 	/* Get the authority to verify the signature */
 	get_key_authority(key_authority, update->var->key);
-	i = 0;
 
-	/* Try for all the authorities that are allowed to sign.
+	/*
+	 * Try for all the authorities that are allowed to sign.
 	 * For eg. db/dbx can be signed by both PK or KEK
 	 */
 	for (i = 0; key_authority[i] != NULL; i++) {
