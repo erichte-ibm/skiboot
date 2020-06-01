@@ -377,47 +377,46 @@ int check_timestamp(const char *key, const struct efi_time *timestamp,
 }
 
 /* Extract PKCS7 from the authentication header */
-static int get_pkcs7(const struct efi_variable_authentication_2 *auth,
-		     mbedtls_pkcs7 **pkcs7)
+static mbedtls_pkcs7* get_pkcs7(const struct efi_variable_authentication_2 *auth)
 {
 	char *checkpkcs7cert = NULL;
 	size_t len;
+	mbedtls_pkcs7 *pkcs7 = NULL;
 	int rc;
 
-	assert(pkcs7 != NULL);
 	len = get_pkcs7_len(auth);
 
-	*pkcs7 = malloc(sizeof(struct mbedtls_pkcs7));
-	if (!(*pkcs7))
-		return OPAL_NO_MEM;
+	pkcs7 = malloc(sizeof(struct mbedtls_pkcs7));
+	if (!pkcs7)
+		return NULL;
 
-	mbedtls_pkcs7_init(*pkcs7);
-	rc = mbedtls_pkcs7_parse_der( auth->auth_info.cert_data, len, *pkcs7);
+	mbedtls_pkcs7_init(pkcs7);
+	rc = mbedtls_pkcs7_parse_der( auth->auth_info.cert_data, len, pkcs7);
 	if (rc) {
 		prlog(PR_ERR, "Parsing pkcs7 failed %04x\n", rc);
-		mbedtls_pkcs7_free(*pkcs7);
-		return rc;
+		goto out;
 	}
 
 	checkpkcs7cert = zalloc(CERT_BUFFER_SIZE);
-	if (!checkpkcs7cert) {
-		mbedtls_pkcs7_free(*pkcs7);
-		return OPAL_NO_MEM;
-	}
+	if (!checkpkcs7cert)
+		goto out;
 
 	rc = mbedtls_x509_crt_info(checkpkcs7cert, CERT_BUFFER_SIZE, "CRT:",
-			&((*pkcs7)->signed_data.certs));
+				   &(pkcs7->signed_data.certs));
 	if (rc < 0) {
 		prlog(PR_ERR, "Failed to parse the certificate in PKCS7 structure\n");
-		rc = OPAL_PARAMETER;
-	} else {
-		rc = OPAL_SUCCESS;
-		prlog(PR_DEBUG, "%s \n", checkpkcs7cert);
+		free(checkpkcs7cert);
+		goto out;
 	}
 
+	prlog(PR_DEBUG, "%s \n", checkpkcs7cert);
 	free(checkpkcs7cert);
+	return pkcs7;
 
-	return rc;
+out:
+	mbedtls_pkcs7_free(pkcs7);
+	pkcs7 = NULL;
+	return pkcs7;
 }
 
 /* Verify the PKCS7 signature on the signed data. */
@@ -430,7 +429,7 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 	char *signing_cert = NULL;
 	char *x509_buf = NULL;
 	int signing_cert_size;
-	int rc;
+	int rc = 0;
 	char *errbuf;
 	int eslvarsize;
 	int eslsize;
@@ -440,9 +439,9 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 		return OPAL_PARAMETER;
 
 	/* Extract the pkcs7 from the auth structure */
-	rc  = get_pkcs7(auth, &pkcs7);
+	pkcs7 = get_pkcs7(auth);
 	/* Failure to parse pkcs7 implies bad input. */
-	if (rc != OPAL_SUCCESS)
+	if (!pkcs7)
 		return OPAL_PARAMETER;
 
 	prlog(PR_INFO, "Load the signing certificate from the keystore");
