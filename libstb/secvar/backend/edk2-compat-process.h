@@ -40,7 +40,7 @@ int update_variable_in_bank(struct secvar *secvar, const char *data,
  * edk2.h for details on Authentication 2 Descriptor
  */
 int get_auth_descriptor2(const void *buf, const size_t buflen,
-			 char **auth_buffer);
+			 void **auth_buffer);
 
 /* Check the format of the ESL */
 int validate_esl_list(const char *key, const char *esl, const size_t size);
