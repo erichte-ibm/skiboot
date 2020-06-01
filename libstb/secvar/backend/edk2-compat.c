@@ -76,8 +76,10 @@ static int edk2_compat_pre_process(struct list_head *variable_bank,
 		list_add_tail(variable_bank, &dbxvar->link);
 	}
 
-	/* Should only ever happen on first boot. Timestamp is
-	 * initialized with all zeroes. */
+	/*
+	 * Should only ever happen on first boot. Timestamp is
+	 * initialized with all zeroes.
+	 */
 	tsvar = find_secvar("TS", 3, variable_bank);
 	if (!tsvar) {
 		tsvar = alloc_secvar(sizeof(struct efi_time) * 4);
