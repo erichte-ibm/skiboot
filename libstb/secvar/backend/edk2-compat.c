@@ -134,20 +134,20 @@ static int edk2_compat_process(struct list_head *variable_bank,
 	 * It should also clear the update bank.
 	 */
 
+	/* Read the TS variable first time and then keep updating it in-memory */
+	tsvar = find_secvar("TS", 3, &staging_bank);
+
+	/* We cannot find timestamp variable, did someone tamper it ?, return
+	 * OPAL_PERMISSION */
+	if (!tsvar)
+		return OPAL_PERMISSION;
+
 	list_for_each(update_bank, node, link) {
 
 		/* Submitted data is auth_2 descriptor + new ESL data
 		 * Extract the auth_2 2 descriptor
 		 */
 		prlog(PR_INFO, "Update for %s\n", node->var->key);
-
-		tsvar = find_secvar("TS", 3, &staging_bank);
-
-		/* We cannot find timestamp variable, did someone tamper it? */
-	        if (!tsvar) {
-			rc = OPAL_PERMISSION;
-			break;
-		}
 
 		rc = process_update(node, &newesl,
 				    &neweslsize, &timestamp,
