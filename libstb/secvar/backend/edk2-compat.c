@@ -212,6 +212,7 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		/* Update the variable bank with updated working copy */
 		clear_bank_list(variable_bank);
 		copy_bank_list(variable_bank, &staging_bank);
+		clear_bank_list(&staging_bank);
 	}
 
 cleanup:
