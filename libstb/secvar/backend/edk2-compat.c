@@ -124,12 +124,15 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		return OPAL_EMPTY;
 	}
 
-	/* Make a working copy of variable bank that is updated
-	 * during process */
+	/* 
+	 * Make a working copy of variable bank that is updated
+	 * during process
+	 */
 	list_head_init(&staging_bank);
 	copy_bank_list(&staging_bank, variable_bank);
 
-	/* Loop through each command in the update bank.
+	/*
+	 * Loop through each command in the update bank.
 	 * If any command fails, it just loops out of the update bank.
 	 * It should also clear the update bank.
 	 */
@@ -137,14 +140,17 @@ static int edk2_compat_process(struct list_head *variable_bank,
 	/* Read the TS variable first time and then keep updating it in-memory */
 	tsvar = find_secvar("TS", 3, &staging_bank);
 
-	/* We cannot find timestamp variable, did someone tamper it ?, return
-	 * OPAL_PERMISSION */
+	/*
+	 * We cannot find timestamp variable, did someone tamper it ?, return
+	 * OPAL_PERMISSION
+	 */
 	if (!tsvar)
 		return OPAL_PERMISSION;
 
 	list_for_each(update_bank, node, link) {
 
-		/* Submitted data is auth_2 descriptor + new ESL data
+		/*
+		 * Submitted data is auth_2 descriptor + new ESL data
 		 * Extract the auth_2 2 descriptor
 		 */
 		prlog(PR_INFO, "Update for %s\n", node->var->key);
@@ -174,12 +180,16 @@ static int edk2_compat_process(struct list_head *variable_bank,
 			break;
 		}
 
-		/* If the PK is updated, update the secure boot state of the
-		 * system at the end of processing */
+		/*
+		 * If the PK is updated, update the secure boot state of the
+		 * system at the end of processing
+		 */
 		if (key_equals(node->var->key, "PK")) {
-			/* PK is tied to a particular firmware image by mapping it with
+			/*
+			 * PK is tied to a particular firmware image by mapping it with
 			 * hw-key-hash of that firmware. When PK is updated, hw-key-hash
-			 * is updated. And when PK is deleted, delete hw-key-hash as well */
+			 * is updated. And when PK is deleted, delete hw-key-hash as well
+			 */
 			if(neweslsize == 0) {
 				setup_mode = true;
 				delete_hw_key_hash(&staging_bank);
@@ -198,8 +208,10 @@ static int edk2_compat_process(struct list_head *variable_bank,
 	}
 
 cleanup:
-	/* For any failure in processing update queue, we clear the update bank
-	 * and return failure */
+	/*
+	 * For any failure in processing update queue, we clear the update bank
+	 * and return failure
+	 */
 	clear_bank_list(update_bank);
 
 	return rc;
@@ -212,9 +224,11 @@ static int edk2_compat_post_process(struct list_head *variable_bank,
 	if (!setup_mode) {
 		secvar_set_secure_mode();
 		prlog(PR_INFO, "Enforcing OS secure mode\n");
-		/* HW KEY HASH is no more needed after this point. It is already
+		/*
+		 * HW KEY HASH is no more needed after this point. It is already
 		 * visible to userspace via device-tree, so exposing via sysfs is
-		 * just a duplication. Remove it from in-memory copy. */
+		 * just a duplication. Remove it from in-memory copy.
+		 */
 		hwvar = find_secvar("HWKH", 5, variable_bank);
 		if (!hwvar) {
 			prlog(PR_ERR, "cannot find hw-key-hash, should not happen\n");
@@ -230,8 +244,10 @@ static int edk2_compat_post_process(struct list_head *variable_bank,
 static int edk2_compat_validate(struct secvar *var)
 {
 
-	/* Checks if the update is for supported
-	 * Non-volatile secure variables */
+	/*
+	 * Checks if the update is for supported
+	 * Non-volatile secure variables
+	 */
 	if (!key_equals(var->key, "PK")
 			&& !key_equals(var->key, "KEK")
 			&& !key_equals(var->key, "db")
