@@ -173,7 +173,7 @@ static int get_pkcs7_len(const struct efi_variable_authentication_2 *auth)
 	return size;
 }
 
-int get_auth_descriptor2(const void *buf, const size_t buflen, char **auth_buffer)
+int get_auth_descriptor2(const void *buf, const size_t buflen, void **auth_buffer)
 {
 	const struct efi_variable_authentication_2 *auth = buf;
 	int auth_buffer_size;
@@ -623,7 +623,7 @@ int process_update(const struct secvar_node *update, char **newesl,
 		   struct list_head *bank, char *last_timestamp)
 {
 	struct efi_variable_authentication_2 *auth = NULL;
-	char *auth_buffer = NULL;
+	void *auth_buffer = NULL;
 	int auth_buffer_size = 0;
 	const char *key_authority[3];
 	char *tbhbuffer = NULL;
@@ -643,7 +643,7 @@ int process_update(const struct secvar_node *update, char **newesl,
 		goto out;
 	}
 
-	auth = (struct efi_variable_authentication_2 *)auth_buffer;
+	auth = auth_buffer;
 
 	if (!timestamp) {
 		rc = OPAL_INTERNAL_ERROR;
