@@ -217,7 +217,7 @@ struct win_certificate_uefi_guid {
 	 * EFI_CERT_TYPE_RSA2048_SHA256_GUID, the @cert_data will be
 	 * EFI_CERT_BLOCK_RSA_2048_SHA256 structure.
 	 */
-	u8 cert_data[1];
+	u8 cert_data[];
 };
 /*
  * When the attribute EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS is set,
