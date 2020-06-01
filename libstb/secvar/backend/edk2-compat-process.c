@@ -177,7 +177,7 @@ int get_auth_descriptor2(const void *buf, const size_t buflen, char **auth_buffe
 {
 	const struct efi_variable_authentication_2 *auth = buf;
 	int auth_buffer_size;
-	int len;
+	size_t len;
 
 	assert(auth_buffer != NULL);
 	if (buflen < sizeof(struct efi_variable_authentication_2)
@@ -185,10 +185,6 @@ int get_auth_descriptor2(const void *buf, const size_t buflen, char **auth_buffe
 			return OPAL_PARAMETER;
 
 	len = get_pkcs7_len(auth);
-
-	/* We need PKCS7 data else there is no signature */
-	if (len <= 0)
-		return OPAL_PARAMETER;
 
 	auth_buffer_size = sizeof(auth->timestamp) + sizeof(auth->auth_info.hdr)
 			   + sizeof(auth->auth_info.cert_type) + len;
@@ -375,15 +371,11 @@ static int get_pkcs7(const struct efi_variable_authentication_2 *auth,
 		     mbedtls_pkcs7 **pkcs7)
 {
 	char *checkpkcs7cert = NULL;
-	int len;
+	size_t len;
 	int rc;
 
+	assert(pkcs7 != NULL);
 	len = get_pkcs7_len(auth);
-	if (len <= 0)
-		return OPAL_PARAMETER;
-
-	if (!pkcs7)
-		return OPAL_PARAMETER;
 
 	*pkcs7 = malloc(sizeof(struct mbedtls_pkcs7));
 	if (!(*pkcs7))
