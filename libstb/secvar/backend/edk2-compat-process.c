@@ -347,8 +347,6 @@ static uint64_t unpack_timestamp(const struct efi_time *timestamp)
 	memcpy(tmp+5, &(timestamp->month), 1);
 	memcpy(tmp+6, &year, 2);
 
-	val = le64_to_cpu(val);
-
 	return val;
 }
 
@@ -652,7 +650,7 @@ int process_update(const struct secvar_node *update, char **newesl,
 		goto out;
 	}
 
-	*timestamp = auth->timestamp;
+	memcpy(timestamp, auth_buffer, sizeof(struct efi_time));
 
 	rc = check_timestamp(update->var->key, timestamp, last_timestamp);
 	/* Failure implies probably an older command being resubmitted */
