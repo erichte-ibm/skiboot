@@ -347,7 +347,6 @@ static uint64_t unpack_timestamp(const struct efi_time *timestamp)
 	memcpy(tmp+5, &(timestamp->month), 1);
 	memcpy(tmp+6, &year, 2);
 
-	/* To handle endianness */
 	val = le64_to_cpu(val);
 
 	return val;
