@@ -25,6 +25,7 @@ struct secvar_node {
 
 #define SECVAR_FLAG_VOLATILE		0x1 // Instructs storage driver to ignore variable on writes
 #define SECVAR_FLAG_SECURE_STORAGE	0x2 // Hint for storage driver to select storage location
+#define SECVAR_FLAG_PRIORITY		0x4 // Hint for storage driver to prioritize writing this variable
 
 struct secvar {
 	uint64_t key_len;
@@ -43,8 +44,13 @@ extern struct secvar_backend_driver secvar_backend;
 
 // Helper functions
 void clear_bank_list(struct list_head *bank);
+int copy_bank_list(struct list_head *dst, struct list_head *src);
 struct secvar_node *alloc_secvar(uint64_t size);
+struct secvar_node *new_secvar(const char *key, uint64_t key_len,
+			       const char *data, uint64_t data_size,
+			       uint64_t flags);
 int realloc_secvar(struct secvar_node *node, uint64_t size);
+void dealloc_secvar(struct secvar_node *node);
 struct secvar_node *find_secvar(const char *key, uint64_t key_len, struct list_head *bank);
 int is_key_empty(const char *key, uint64_t key_len);
 int list_length(struct list_head *bank);

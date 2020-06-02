@@ -39,6 +39,7 @@
 #include <vas.h>
 #include <libstb/secureboot.h>
 #include <libstb/trustedboot.h>
+#include <libstb/tss2/tssskiboot.h>
 #include <phys-map.h>
 #include <imc.h>
 #include <dts.h>
@@ -556,6 +557,8 @@ void __noreturn load_and_boot_kernel(bool is_reboot)
 	}
 
 	load_initramfs();
+
+	tss_set_platform_auth();
 
 	trustedboot_exit_boot_services();
 
@@ -1264,7 +1267,7 @@ void __noreturn __nomcount main_cpu_entry(const void *fdt)
 	trustedboot_init();
 
 	/* Secure variables init, handled by platform */
-	if (platform.secvar_init)
+	if (platform.secvar_init && is_fw_secureboot())
 		platform.secvar_init();
 
 	/*
