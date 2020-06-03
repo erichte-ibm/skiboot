@@ -66,13 +66,13 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 			prlog(PR_ERR, "Error in backend pre_process = %d\n", rc);
 			/* Early failure state, lock the storage */
 			secvar_storage.lockdown();
-			goto out;
+			goto soft_fail;
 		}
 	}
 
 	/* Process is required, error if it doesn't exist */
 	if (!secvar_backend.process)
-		goto out;
+		goto soft_fail;
 
 	/* Process variable updates from the update bank. */
 	rc = secvar_backend.process(&variable_bank, &update_bank);
@@ -86,7 +86,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	if (rc == OPAL_SUCCESS) {
 		rc = secvar_storage.write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 		if (rc)
-			goto out;
+			goto soft_fail;
 	}
 	/* Write (and probably clear) the update bank if .process() actually detected
 	 * and handled updates in the update bank. Unlike above, this includes error
@@ -95,7 +95,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	if (rc != OPAL_EMPTY) {
 		rc = secvar_storage.write_bank(&update_bank, SECVAR_UPDATE_BANK);
 		if (rc)
-			goto out;
+			goto soft_fail;
 	}
 	/* Unconditionally lock the storage at this point */
 	secvar_storage.lockdown();
@@ -104,7 +104,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		rc = secvar_backend.post_process(&variable_bank, &update_bank);
 		if (rc) {
 			prlog(PR_ERR, "Error in backend post_process = %d\n", rc);
-			goto out;
+			goto soft_fail;
 		}
 	}
 
@@ -121,7 +121,7 @@ fail:
 	prerror("secvar failed to initialize, rc = %04x\n", rc);
 	return rc;
 
-out:
+soft_fail:
 	/* Soft-failure, enforce secure boot in bootloader for debug/recovery */
 	clear_bank_list(&variable_bank);
 	clear_bank_list(&update_bank);
