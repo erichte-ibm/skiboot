@@ -40,8 +40,10 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	list_head_init(&variable_bank);
 	list_head_init(&update_bank);
 
-	/* Failures here should indicate some kind of hardware problem,
-	 * therefore we don't even attempt to continue */
+	/* 
+	 * Failures here should indicate some kind of hardware problem,
+	 * therefore we don't even attempt to continue
+	 */
 	rc = secvar_storage.store_init();
 	if (rc)
 		secureboot_enforce();
@@ -54,7 +56,8 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	if (rc)
 		goto fail;
 
-	/* At this point, base secvar is functional.
+	/* 
+	 * At this point, base secvar is functional.
 	 * In the event of some error, boot up to Petitboot in secure mode
 	 * with an empty keyring, for an admin to attempt to debug.
 	 */
@@ -81,15 +84,18 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	/* Create and set the ibm,opal/secvar/update-status device tree property */
 	secvar_set_update_status(rc);
 
-	/* Only write to the storage if we actually processed updates
+	/* 
+	 * Only write to the storage if we actually processed updates
 	 * OPAL_EMPTY implies no updates were processed
-	 * Refer to full table in doc/device-tree/ibm,opal/secvar.rst */
+	 * Refer to full table in doc/device-tree/ibm,opal/secvar.rst
+	 */
 	if (rc == OPAL_SUCCESS) {
 		rc = secvar_storage.write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 		if (rc)
 			goto soft_fail;
 	}
-	/* Write (and probably clear) the update bank if .process() actually detected
+	/*
+	 * Write (and probably clear) the update bank if .process() actually detected
 	 * and handled updates in the update bank. Unlike above, this includes error
 	 * cases, where the backend should probably be clearing the bank.
 	 */
@@ -123,7 +129,8 @@ fail:
 	return rc;
 
 soft_fail:
-	/* Soft-failure, enforce secure boot with an empty keyring in
+	/*
+	 * Soft-failure, enforce secure boot with an empty keyring in
 	 * bootloader for debug/recovery
 	 */
 	clear_bank_list(&variable_bank);
