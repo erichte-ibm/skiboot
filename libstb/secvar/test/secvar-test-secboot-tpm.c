@@ -44,7 +44,7 @@ struct platform platform;
 int run_test(void)
 {
 	int rc;
-	struct secvar_node *tmp;
+	struct secvar *tmp;
 
 	platform.secboot_read = secboot_read;
 	platform.secboot_write = secboot_write;
@@ -62,44 +62,28 @@ int run_test(void)
 	ASSERT(0 == list_length(&variable_bank));
 
 	// Add some test variables
-	tmp = alloc_secvar(8);
-	tmp->var->key_len = 5;
-	memcpy(tmp->var->key, "test", 5);
-	tmp->var->data_size = 8;
-	memcpy(tmp->var->data, "testdata", 8);
+	tmp = new_secvar("test", 5, "testdata", 8, 0);
 	list_add_tail(&variable_bank, &tmp->link);
 
-	tmp = alloc_secvar(8);
-	tmp->var->key_len = 4;
-	memcpy(tmp->var->key, "foo", 4);
-	tmp->var->data_size = 8;
-	memcpy(tmp->var->data, "moredata", 8);
+	tmp = new_secvar("foo", 3, "moredata", 8, 0);
 	list_add_tail(&variable_bank, &tmp->link);
 
 	// Add a priority variable, ensure that works
-	tmp = alloc_secvar(4);
-	tmp->var->key_len = 9;
-	memcpy(tmp->var->key, "priority", 9);
-	tmp->var->data_size = 4;
-	memcpy(tmp->var->data, "meep", 4);
-	tmp->flags |= SECVAR_FLAG_PROTECTED;
+	tmp = new_secvar("priority", 9, "meep", 4, SECVAR_FLAG_PROTECTED);
 	list_add_tail(&variable_bank, &tmp->link);
 
 	// Add another one
-	tmp = alloc_secvar(4);
-	tmp->var->key_len = 10;
-	memcpy(tmp->var->key, "priority2", 9);
-	tmp->var->data_size = 4;
-	memcpy(tmp->var->data, "meep", 4);
-	tmp->flags |= SECVAR_FLAG_PROTECTED;
+	tmp = new_secvar("priority2", 9, "meep", 4, SECVAR_FLAG_PROTECTED);
 	list_add_tail(&variable_bank, &tmp->link);
+
+	ASSERT(4 == list_length(&variable_bank));
 
 	// Write the bank
 	rc = secboot_tpm_write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
 	// should write to bank 1 first
-	ASSERT(secboot_image->bank[1][0] != 0);
-	ASSERT(secboot_image->bank[0][0] == 0);
+	ASSERT(*((uint64_t*) secboot_image->bank[1]) != 0llu);
+	ASSERT(*((uint64_t*) secboot_image->bank[0]) == 0llu);
 
 	// Clear the variable list
 	clear_bank_list(&variable_bank);
@@ -111,15 +95,15 @@ int run_test(void)
 	ASSERT(4 == list_length(&variable_bank));
 
 	// Change a variable
-	tmp = list_tail(&variable_bank, struct secvar_node, link);
-	memcpy(tmp->var->data, "somethin", 8);
+	tmp = list_tail(&variable_bank, struct secvar, link);
+	memcpy(tmp->data, "somethin", 8);
 
 	// Write the bank
 	rc = secboot_tpm_write_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	ASSERT(OPAL_SUCCESS == rc);
 	// should have data in both now
-	ASSERT(secboot_image->bank[0][0] != 0);
-	ASSERT(secboot_image->bank[1][0] != 0);
+	ASSERT(*((uint64_t*) secboot_image->bank[0]) != 0llu);
+	ASSERT(*((uint64_t*) secboot_image->bank[1]) != 0llu);
 
 	clear_bank_list(&variable_bank);
 
