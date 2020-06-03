@@ -65,7 +65,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		if (rc) {
 			prlog(PR_ERR, "Error in backend pre_process = %d\n", rc);
 			/* Early failure state, lock the storage */
-			secvar_storage.lock();
+			secvar_storage.lockdown();
 			goto out;
 		}
 	}
@@ -98,7 +98,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 			goto out;
 	}
 	/* Unconditionally lock the storage at this point */
-	secvar_storage.lock();
+	secvar_storage.lockdown();
 
 	if (secvar_backend.post_process) {
 		rc = secvar_backend.post_process(&variable_bank, &update_bank);
@@ -115,7 +115,7 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 fail:
 	/* Early failure, base secvar support failed to initialize */
 	secvar_set_status("fail");
-	secvar_storage.lock();
+	secvar_storage.lockdown();
 	secvar_set_secure_mode();
 
 	prerror("secvar failed to initialize, rc = %04x\n", rc);
@@ -125,7 +125,7 @@ out:
 	/* Soft-failure, enforce secure boot in bootloader for debug/recovery */
 	clear_bank_list(&variable_bank);
 	clear_bank_list(&update_bank);
-	secvar_storage.lock();
+	secvar_storage.lockdown();
 	secvar_set_secure_mode();
 
 	prerror("secvar failed to initialize, rc = %04x\n", rc);
