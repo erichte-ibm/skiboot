@@ -46,9 +46,6 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 	if (rc)
 		secureboot_enforce();
 
-	/* Failures here may be recoverable,
-	 *  (PNOR was corrupted, restore from backup)
-	 * so we want to boot up to skiroot to give the user a chance to fix */
 	rc = secvar_storage.load_bank(&variable_bank, SECVAR_VARIABLE_BANK);
 	if (rc)
 		goto fail;
@@ -58,7 +55,9 @@ int secvar_main(struct secvar_storage_driver storage_driver,
 		goto fail;
 
 	/* At this point, base secvar is functional.
-	 * The rest is up to the backend */
+	 * In the event of some error, boot up to Petitboot in secure mode
+	 * with an empty keyring, for an admin to attempt to debug.
+	 */
 	secvar_ready = 1;
 	secvar_set_status("okay");
 
@@ -127,7 +126,9 @@ fail:
 	return rc;
 
 soft_fail:
-	/* Soft-failure, enforce secure boot in bootloader for debug/recovery */
+	/* Soft-failure, enforce secure boot with an empty keyring in
+	 * bootloader for debug/recovery
+	 */
 	clear_bank_list(&variable_bank);
 	clear_bank_list(&update_bank);
 	secvar_storage.lockdown();
