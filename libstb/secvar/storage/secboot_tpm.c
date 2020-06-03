@@ -110,21 +110,25 @@ static int secboot_format(void)
 }
 
 
-/* Serialize one priority variable using a tighter packing scheme
- * Returns the advanced target pointer */
-static char *secboot_serialize_priority(char *target, struct secvar_node *node, char *end)
+/*
+ * Serialize one variable to a target memory location.
+ * Returns the advanced target pointer,
+ *   NULL if advanced pointer would exceed the supplied bound
+ */
+static char *secboot_serialize_secvar(char *target, struct secvar *var, char *end)
 {
-	if ((target + node->var->key_len + node->var->data_size + offsetof(struct secvar, key))	> end)
+	if ((target + sizeof(uint64_t) + sizeof(uint64_t)
+		+ var->key_len + var->data_size) > end)
 		return NULL;
 
-	memcpy(target, &node->var->key_len, sizeof(node->var->key_len));
-	target += sizeof(node->var->key_len);
-	memcpy(target, &node->var->data_size, sizeof(node->var->data_size));
-	target += sizeof(node->var->data_size);
-	memcpy(target, node->var->key, node->var->key_len);
-	target += node->var->key_len;
-	memcpy(target, node->var->data, node->var->data_size);
-	target += node->var->data_size;
+	*((uint64_t*) target) = cpu_to_be64(var->key_len);
+	target += sizeof(var->key_len);
+	*((uint64_t*) target) = cpu_to_be64(var->data_size);
+	target += sizeof(var->data_size);
+	memcpy(target, var->key, var->key_len);
+	target += var->key_len;
+	memcpy(target, var->data, var->data_size);
+	target += var->data_size;
 
 	return target;
 }
@@ -133,8 +137,7 @@ static char *secboot_serialize_priority(char *target, struct secvar_node *node, 
 /* Flattens a linked-list bank into a contiguous buffer for writing */
 static int secboot_serialize_bank(struct list_head *bank, char *target, size_t target_size, int flags)
 {
-	struct secvar_node *node;
-	char *tmp = target;
+	struct secvar *var;
 	char *end = target + target_size;
 
 	if (!bank)
@@ -144,73 +147,23 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 
 	memset(target, 0x00, target_size);
 
-	list_for_each(bank, node, link) {
-		if (node->flags != flags)
+	// TODO: maybe do a size check before even writing?
+	// TODO: maybe add secvar_sizeof() function to make this easier?
+
+	list_for_each(bank, var, link) {
+		if (var->flags != flags)
 			continue;
 
-		/* Priority variable has a different packing scheme */
-		if (flags & SECVAR_FLAG_PRIORITY) {
-			target = secboot_serialize_priority(target, node, end);
-			if (!target)
-				return OPAL_EMPTY;
-			continue;
-		}
-
-		/* Bail early if we are out of storage space */
-		if ((target - tmp) + sizeof(struct secvar) + node->var->data_size > target_size) {
-			prlog(PR_ERR, "Ran out of PNOR space, giving up!\n");
+		target = secboot_serialize_secvar(target, var, end);
+		if (!target) {
+			prlog(PR_ERR, "Ran out of %s space, giving up!",
+				(flags & SECVAR_FLAG_PRIORITY) ? "TPMNV" : "PNOR");
 			return OPAL_EMPTY;
 		}
-
-		memcpy(target, node->var, sizeof(struct secvar) + node->var->data_size);
-
-		target += sizeof(struct secvar) + node->var->data_size;
 	}
 
 	return OPAL_SUCCESS;
 }
-
-/* Loads in a flattened list of variables from a buffer into a linked list */
-static int secboot_load_from_pnor(struct list_head *bank, char *source, size_t max_size)
-{
-	char *src;
-	struct secvar_node *tmp;
-	struct secvar *hdr;
-
-	src = source;
-
-	while (src < (source + max_size)) {
-		/* Load in the header first to get the size, and check if we are at the end
-		 * Banks are zeroized after each write, thus key_len == 0 indicates end of the list */
-		hdr = (struct secvar *) src;
-		if (hdr->key_len == 0) {
-			break;
-		} else if (hdr->key_len > SECVAR_MAX_KEY_LEN) {
-			prlog(PR_ERR, "Attempted to load a key larger than max, len = %llu\n", hdr->key_len);
-			return OPAL_INTERNAL_ERROR;
-		}
-
-		if (hdr->data_size > SECBOOT_TPM_MAX_VAR_SIZE) {
-			prlog(PR_ERR, "Attempted to load a data payload larger than max, "
-				      "size = %llu\n", hdr->data_size);
-			return OPAL_INTERNAL_ERROR;
-		}
-
-		tmp = alloc_secvar(hdr->data_size);
-		if (!tmp) {
-			prlog(PR_ERR, "Could not allocate memory for loading secvar from image\n");
-			return OPAL_NO_MEM;
-		}
-
-		memcpy(tmp->var, src, sizeof(struct secvar) + hdr->data_size);
-
-		list_add_tail(bank, &tmp->link);
-		src += sizeof(struct secvar) + hdr->data_size;
-	}
-
-	return OPAL_SUCCESS;
-}
-
 
 /* Helper for the variable-bank specific writing logic */
 static int secboot_tpm_write_variable_bank(struct list_head *bank)
@@ -219,24 +172,29 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 	uint64_t bit;
 
 	bit = CYCLE_BIT(tpmnv_control_image->active_bit);
+	/* Serialize TPMNV variables */
 	rc = secboot_serialize_bank(bank, tpmnv_vars_image->vars, tpmnv_vars_size - sizeof(struct tpmnv_vars), SECVAR_FLAG_PRIORITY);
 	if (rc)
 		goto out;
 
+
+	/* Write TPMNV variables to actual NV */
 	rc = tpmnv_ops.write(SECBOOT_TPMNV_VARS_INDEX, tpmnv_vars_image, tpmnv_vars_size, 0);
 	if (rc)
 		goto out;
 
-	/* Calculate the bank hash, and write to TPM NV */
+	/* Serialize the PNOR variables, but don't write to flash until after the bank hash */
 	rc = secboot_serialize_bank(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
 	if (rc)
 		goto out;
 
+	/* Calculate the bank hash, and write to TPM NV */
 	rc = calc_bank_hash(tpmnv_control_image->bank_hash[bit], secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
 	if (rc)
 		goto out;
 
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[bit], SHA256_DIGEST_LENGTH, offsetof(struct tpmnv_control, bank_hash[bit]));
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, tpmnv_control_image->bank_hash[bit],
+				SHA256_DIGEST_LENGTH, offsetof(struct tpmnv_control, bank_hash[bit]));
 	if (rc)
 		goto out;
 
@@ -247,7 +205,8 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 
 	/* Flip the bit, and write to TPM NV */
 	tpmnv_control_image->active_bit = bit;
-	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, &tpmnv_control_image->active_bit, sizeof(tpmnv_control_image->active_bit), offsetof(struct tpmnv_control, active_bit));
+	rc = tpmnv_ops.write(SECBOOT_TPMNV_CONTROL_INDEX, &tpmnv_control_image->active_bit,
+				sizeof(tpmnv_control_image->active_bit), offsetof(struct tpmnv_control, active_bit));
 out:
 
 	return rc;
@@ -276,64 +235,103 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 	return rc;
 }
 
-/* Priority variables stored in TPMNV have to be packed tighter to make the most
- * out of the small amount of space available */
-static int secboot_tpm_load_from_tpmnv(struct list_head *bank)
+
+/*
+ * Deserialize a single secvar from a buffer.
+ * Returns an advanced pointer, and an allocated secvar in *var.
+ * Returns NULL if out of bounds reached, or out of memory.
+ */
+static int secboot_deserialize_secvar(struct secvar **var, char **src, char *end)
 {
-	struct secvar *hdr;
-	struct secvar_node *node;
+	uint64_t key_len;
+	uint64_t data_size;
+	struct secvar *ret;
+
+	assert(var);
+
+	/* Load in the two header values */
+	key_len = be64_to_cpu(*((uint64_t *) *src));
+	*src += sizeof(uint64_t);
+	data_size = be64_to_cpu(*((uint64_t *) *src));
+	*src += sizeof(uint64_t);
+
+	/* Check if we've reached the last var to deserialize */
+	if ((key_len == 0) && (data_size == 0)) {
+		return OPAL_EMPTY;
+	}
+
+	if (key_len > SECVAR_MAX_KEY_LEN) {
+		prlog(PR_ERR, "Deserialization failed: key length exceeded maximum value"
+			"%llu > %llu", key_len, SECVAR_MAX_KEY_LEN);
+		return OPAL_RESOURCE;
+	}
+	if (data_size > SECBOOT_TPM_MAX_VAR_SIZE) {
+		prlog(PR_ERR, "Deserialization failed: data size exceeded maximum value"
+			"%llu > %llu", key_len, SECBOOT_TPM_MAX_VAR_SIZE);
+		return OPAL_RESOURCE;
+	}
+
+	/* Make sure these fields aren't oversized... */
+	if ((*src + key_len + data_size) > end) {
+		*var = NULL;
+		prlog(PR_ERR, "key_len or data_size exceeded the expected bounds");
+		return OPAL_RESOURCE;
+	}
+
+	ret = alloc_secvar(key_len, data_size);
+	if (!ret) {
+		*var = NULL;
+		prlog(PR_ERR, "Out of memory, could not allocate new secvar");
+		return OPAL_NO_MEM;
+	}
+
+	/* Load in variable-sized data */
+	memcpy(ret->key, *src, ret->key_len);
+	*src += ret->key_len;
+	memcpy(ret->data, *src, ret->data_size);
+	*src += ret->data_size;
+
+	*var = ret;
+
+	return OPAL_SUCCESS;
+}
+
+
+/* Load variables from a flattened buffer into a bank list */
+static int secboot_tpm_deserialize_from_buffer(struct list_head *bank, char *src, uint64_t size, uint64_t flags)
+{
+	struct secvar *var;
 	char *cur;
 	char *end;
+	int rc = 0;
 
-	cur = tpmnv_vars_image->vars;
-	end = ((char *) tpmnv_vars_image) + tpmnv_vars_size;
+	cur = src;
+	end = src + size;
 
 	while (cur < end) {
 		/* Ensure there is enough space to even check for another var header */
-		if ((end - cur) < offsetof(struct secvar, key))
+		if ((end - cur) < (sizeof(uint64_t) * 2))
 			break;
 
-		/* Temporary cast to check sizes in the header */
-		hdr = (struct secvar *) cur;
-
-		/* Check if we have a priority variable to load
-		 * Should be zeroes if nonexistent */
-		if ((hdr->key_len == 0) && (hdr->data_size == 0))
-			break;
-
-		/* Sanity check our potential priority variables */
-		if ((hdr->key_len > SECVAR_MAX_KEY_LEN)
-		     || (hdr->data_size > SECBOOT_TPM_MAX_VAR_SIZE)) {
-			prlog(PR_ERR, "TPM NV Priority variable has impossible sizes, probably internal bug. "
-				      "len = %llu, size = %llu\n", hdr->key_len, hdr->data_size);
-			return OPAL_INTERNAL_ERROR;
+		rc = secboot_deserialize_secvar(&var, &cur, end);
+		switch (rc) {
+			case OPAL_RESOURCE:
+			case OPAL_NO_MEM:
+				goto fail;
+			case OPAL_EMPTY:
+				goto done;
+			default: assert(1);
 		}
 
-		/* Advance cur over the two size values */
-		cur += sizeof(hdr->key_len);
-		cur += sizeof(hdr->data_size);
+		var->flags |= flags;
 
-		/* Ensure the expected key/data size doesn't exceed the remaining buffer */
-		if ((end - cur) < (hdr->data_size + hdr->key_len))
-			return OPAL_INTERNAL_ERROR;
-
-		node = alloc_secvar(hdr->data_size);
-		if (!node)
-			return OPAL_NO_MEM;
-
-		node->var->key_len = hdr->key_len;
-		node->var->data_size = hdr->data_size;
-		node->flags |= SECVAR_FLAG_PRIORITY;
-
-		memcpy(node->var->key, cur, hdr->key_len);
-		cur += hdr->key_len;
-		memcpy(node->var->data, cur, hdr->data_size);
-		cur += hdr->data_size;
-
-		list_add_tail(bank, &node->link);
+		list_add_tail(bank, &var->link);
 	}
-
+done:
 	return OPAL_SUCCESS;
+fail:
+	clear_bank_list(bank);
+	return rc;
 }
 
 static int secboot_tpm_load_variable_bank(struct list_head *bank)
@@ -350,11 +348,11 @@ static int secboot_tpm_load_variable_bank(struct list_head *bank)
 	if (memcmp(bank_hash, tpmnv_control_image->bank_hash[bit], SHA256_DIGEST_LENGTH))
 		return OPAL_PERMISSION; /* Tampered pnor space detected, abandon ship */
 
-	rc = secboot_tpm_load_from_tpmnv(bank);
+	rc = secboot_tpm_deserialize_from_buffer(bank, tpmnv_vars_image->vars, tpmnv_vars_size, SECVAR_FLAG_PRIORITY);
 	if (rc)
 		return rc;
 
-	return secboot_load_from_pnor(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE);
+	return secboot_tpm_deserialize_from_buffer(bank, secboot_image->bank[bit], SECBOOT_VARIABLE_BANK_SIZE, 0);
 }
 
 
@@ -364,7 +362,7 @@ static int secboot_tpm_load_bank(struct list_head *bank, int section)
 	case SECVAR_VARIABLE_BANK:
 		return secboot_tpm_load_variable_bank(bank);
 	case SECVAR_UPDATE_BANK:
-		return secboot_load_from_pnor(bank, secboot_image->update, SECBOOT_UPDATE_BANK_SIZE);
+		return secboot_tpm_deserialize_from_buffer(bank, secboot_image->update, SECBOOT_UPDATE_BANK_SIZE, 0);
 	}
 
 	return OPAL_HARDWARE;
@@ -586,7 +584,7 @@ error:
 }
 
 
-static void secboot_tpm_lock(void)
+static void secboot_tpm_lockdown(void)
 {
 	/* Note: While write lock is called here on the two NV indices,
 	 * both indices are also defined on the platform hierarchy.
@@ -612,6 +610,6 @@ struct secvar_storage_driver secboot_tpm_driver = {
 	.load_bank = secboot_tpm_load_bank,
 	.write_bank = secboot_tpm_write_bank,
 	.store_init = secboot_tpm_store_init,
-	.lock = secboot_tpm_lock,
+	.lockdown = secboot_tpm_lockdown,
 	.max_var_size = SECBOOT_TPM_MAX_VAR_SIZE,
 };
