@@ -32,7 +32,7 @@ extern bool setup_mode;
 extern struct list_head staging_bank;
 
 /* Update the variable in the variable bank with the new value. */
-int update_variable_in_bank(struct secvar *secvar, const char *data,
+int update_variable_in_bank(struct secvar *update_var, const char *data,
 			    uint64_t dsize, struct list_head *bank);
 
 /* This function outputs the Authentication 2 Descriptor in the
@@ -55,7 +55,7 @@ int check_timestamp(const char *key, const struct efi_time *timestamp, char *las
 bool is_pkcs7_sig_format(const void *data);
 
 /* Process the update */
-int process_update(const struct secvar_node *update, char **newesl,
+int process_update(const struct secvar *update, char **newesl,
 		   int *neweslsize, struct efi_time *timestamp,
 		   struct list_head *bank, char *last_timestamp);
 
