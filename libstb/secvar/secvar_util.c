@@ -115,6 +115,7 @@ void dealloc_secvar(struct secvar *var)
 	if (!var)
 		return;
 
+	free(var->key);
 	free(var->data);
 	free(var);
 }
