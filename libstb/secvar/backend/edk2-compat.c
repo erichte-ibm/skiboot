@@ -29,11 +29,11 @@ struct list_head staging_bank;
 static int edk2_compat_pre_process(struct list_head *variable_bank,
 				   struct list_head *update_bank __unused)
 {
-	struct secvar_node *pkvar;
-	struct secvar_node *kekvar;
-	struct secvar_node *dbvar;
-	struct secvar_node *dbxvar;
-	struct secvar_node *tsvar;
+	struct secvar *pkvar;
+	struct secvar *kekvar;
+	struct secvar *dbvar;
+	struct secvar *dbxvar;
+	struct secvar *tsvar;
 
 	pkvar = find_secvar("PK", 3, variable_bank);
 	if (!pkvar) {
@@ -44,7 +44,7 @@ static int edk2_compat_pre_process(struct list_head *variable_bank,
 
 		list_add_tail(variable_bank, &pkvar->link);
 	}
-	if (pkvar->var->data_size == 0)
+	if (pkvar->data_size == 0)
 		setup_mode = true;
 	else
 		setup_mode = false;
@@ -82,14 +82,14 @@ static int edk2_compat_pre_process(struct list_head *variable_bank,
 	 */
 	tsvar = find_secvar("TS", 3, variable_bank);
 	if (!tsvar) {
-		tsvar = alloc_secvar(sizeof(struct efi_time) * 4);
+		tsvar = alloc_secvar(3, sizeof(struct efi_time) * 4);
 		if (!tsvar)
 			return OPAL_NO_MEM;
 
-		memcpy(tsvar->var->key, "TS", 3);
-		tsvar->var->key_len = 3;
-		tsvar->var->data_size = sizeof(struct efi_time) * 4;
-		memset(tsvar->var->data, 0, tsvar->var->data_size);
+		memcpy(tsvar->key, "TS", 3);
+		tsvar->key_len = 3;
+		tsvar->data_size = sizeof(struct efi_time) * 4;
+		memset(tsvar->data, 0, tsvar->data_size);
 		list_add_tail(variable_bank, &tsvar->link);
 	}
 
@@ -99,8 +99,8 @@ static int edk2_compat_pre_process(struct list_head *variable_bank,
 static int edk2_compat_process(struct list_head *variable_bank,
 			       struct list_head *update_bank)
 {
-	struct secvar_node *node = NULL;
-	struct secvar_node *tsvar = NULL;
+	struct secvar *var = NULL;
+	struct secvar *tsvar = NULL;
 	struct efi_time timestamp;
 	char *newesl = NULL;
 	int neweslsize;
@@ -149,18 +149,18 @@ static int edk2_compat_process(struct list_head *variable_bank,
 	if (!tsvar)
 		return OPAL_PERMISSION;
 
-	list_for_each(update_bank, node, link) {
+	list_for_each(update_bank, var, link) {
 
 		/*
 		 * Submitted data is auth_2 descriptor + new ESL data
 		 * Extract the auth_2 2 descriptor
 		 */
-		prlog(PR_INFO, "Update for %s\n", node->var->key);
+		prlog(PR_INFO, "Update for %s\n", var->key);
 
-		rc = process_update(node, &newesl,
+		rc = process_update(var, &newesl,
 				    &neweslsize, &timestamp,
 				    &staging_bank,
-				    tsvar->var->data);
+				    tsvar->data);
 		if (rc) {
 			prlog(PR_ERR, "Update processing failed with rc %04x\n", rc);
 			break;
@@ -170,7 +170,7 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		 * If reached here means, signature is verified so update the
 		 * value in the variable bank
 		 */
-		rc = update_variable_in_bank(node->var,
+		rc = update_variable_in_bank(var,
 					     newesl,
 					     neweslsize,
 					     &staging_bank);
@@ -181,9 +181,9 @@ static int edk2_compat_process(struct list_head *variable_bank,
 
 		free(newesl);
 		/* Update the TS variable with the new timestamp */
-		rc = update_timestamp(node->var->key,
+		rc = update_timestamp(var->key,
 				      &timestamp,
-				      tsvar->var->data);
+				      tsvar->data);
 		if (rc) {
 			prlog (PR_ERR, "Variable updated, but timestamp updated failed %04x\n", rc);
 			break;
@@ -193,7 +193,7 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		 * If the PK is updated, update the secure boot state of the
 		 * system at the end of processing
 		 */
-		if (key_equals(node->var->key, "PK")) {
+		if (key_equals(var->key, "PK")) {
 			/*
 			 * PK is tied to a particular firmware image by mapping it with
 			 * hw-key-hash of that firmware. When PK is updated, hw-key-hash
@@ -230,7 +230,7 @@ cleanup:
 static int edk2_compat_post_process(struct list_head *variable_bank,
 				    struct list_head *update_bank __unused)
 {
-	struct secvar_node *hwvar;
+	struct secvar *hwvar;
 	if (!setup_mode) {
 		secvar_set_secure_mode();
 		prlog(PR_INFO, "Enforcing OS secure mode\n");
