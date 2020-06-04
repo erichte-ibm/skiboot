@@ -151,10 +151,8 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 	struct secvar *var;
 	char *end = target + target_size;
 
-	if (!bank)
-		return OPAL_INTERNAL_ERROR;
-	if (!target)
-		return OPAL_INTERNAL_ERROR;
+	assert(bank);
+	assert(target);
 
 	memset(target, 0x00, target_size);
 
