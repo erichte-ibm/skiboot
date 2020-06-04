@@ -8,42 +8,42 @@
 
 int reset_keystore(struct list_head *bank)
 {
-	struct secvar_node *node;
+	struct secvar *var;
 	int rc = 0;
 
-	node = find_secvar("PK", 3, bank);
-	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	var = find_secvar("PK", 3, bank);
+	if (var)
+		rc = update_variable_in_bank(var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("KEK", 4, bank);
-	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	var = find_secvar("KEK", 4, bank);
+	if (var)
+		rc = update_variable_in_bank(var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("db", 3, bank);
-	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	var = find_secvar("db", 3, bank);
+	if (var)
+		rc = update_variable_in_bank(var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("dbx", 4, bank);
-	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	var = find_secvar("dbx", 4, bank);
+	if (var)
+		rc = update_variable_in_bank(var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("TS", 3, bank);
-	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	var = find_secvar("TS", 3, bank);
+	if (var)
+		rc = update_variable_in_bank(var, NULL, 0, bank);
 	if (rc)
 		return rc;
 
-	node = find_secvar("HWKH", 5, bank);
-	if (node)
-		rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	var = find_secvar("HWKH", 5, bank);
+	if (var)
+		rc = update_variable_in_bank(var, NULL, 0, bank);
 
 	return rc;
 }
@@ -51,7 +51,7 @@ int reset_keystore(struct list_head *bank)
 
 int add_hw_key_hash(struct list_head *bank)
 {
-	struct secvar_node *node;
+	struct secvar *var;
 	uint32_t hw_key_hash_size;
 	const char *hw_key_hash;
 	struct dt_node *secureboot;
@@ -67,23 +67,23 @@ int add_hw_key_hash(struct list_head *bank)
 	if (!hw_key_hash)
 		return OPAL_PERMISSION;
 
-	node = new_secvar("HWKH", 5, hw_key_hash,
+	var = new_secvar("HWKH", 5, hw_key_hash,
 			hw_key_hash_size, SECVAR_FLAG_PROTECTED);
-	list_add_tail(bank, &node->link);
+	list_add_tail(bank, &var->link);
 
 	return OPAL_SUCCESS;
 }
 
 int delete_hw_key_hash(struct list_head *bank)
 {
-	struct secvar_node *node;
+	struct secvar *var;
 	int rc;
 
-	node = find_secvar("HWKH", 5, bank);
-	if (!node)
+	var = find_secvar("HWKH", 5, bank);
+	if (!var)
 		return OPAL_SUCCESS;
 
-	rc = update_variable_in_bank(node->var, NULL, 0, bank);
+	rc = update_variable_in_bank(var, NULL, 0, bank);
 	return rc;
 }
 
@@ -91,7 +91,7 @@ int verify_hw_key_hash(void)
 {
 	const char *hw_key_hash;
 	struct dt_node *secureboot;
-	struct secvar_node *node;
+	struct secvar *var;
 
 	secureboot = dt_find_by_path(dt_root, "ibm,secureboot");
 	if (!secureboot)
@@ -103,11 +103,11 @@ int verify_hw_key_hash(void)
 		return OPAL_INTERNAL_ERROR;
 
 	/* This value is from the protected storage */
-	node = find_secvar("HWKH", 5, &variable_bank);
-	if (!node)
+	var = find_secvar("HWKH", 5, &variable_bank);
+	if (!var)
 		return OPAL_PERMISSION;
 
-	if (memcmp(hw_key_hash, node->var->data, node->var->data_size) != 0)
+	if (memcmp(hw_key_hash, var->data, var->data_size) != 0)
 		return OPAL_PERMISSION;
 
 	return OPAL_SUCCESS;
