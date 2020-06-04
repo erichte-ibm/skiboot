@@ -122,7 +122,7 @@ static int64_t opal_secvar_enqueue_update(const char *key, uint64_t key_len, voi
 			return OPAL_EMPTY;
 
 		list_del(&var->link);
-		free(var);
+		dealloc_secvar(var);
 		goto out;
 	}
 
