@@ -81,9 +81,6 @@ int run_test(void)
 	ASSERT(rc == OPAL_RESOURCE);
 	secvar_ready = 1;
 
-	list_del(&var->link);
-
-	free(var);
 	free(data);
 	free(temp);
 
