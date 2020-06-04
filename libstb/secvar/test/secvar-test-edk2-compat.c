@@ -27,10 +27,7 @@ int run_test()
 {
 	int rc = -1;
 	struct secvar *tmp;
-	struct secvar *ts;
-	ts = alloc_secvar(3, 64);
-        memcpy(ts->key, "TS", 3);
-        memset(ts->data, 0, 64);
+	char empty[64] = {0};
 
 	// Check pre-process creates the empty variables
 	ASSERT(0 == list_length(&variable_bank));
@@ -40,8 +37,7 @@ int run_test()
 	tmp = find_secvar("TS", 3, &variable_bank);
 	ASSERT(NULL != tmp);
 	ASSERT(64 == tmp->data_size);
-	ASSERT(!(memcmp(tmp->data, ts->data, 64)));
-	
+	ASSERT(!(memcmp(tmp->data, empty, 64)));
 
 	// Add PK to update and .process()
 	printf("Add PK");
