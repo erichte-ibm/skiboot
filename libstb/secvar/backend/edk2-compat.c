@@ -180,6 +180,7 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		}
 
 		free(newesl);
+		newesl = NULL;
 		/* Update the TS variable with the new timestamp */
 		rc = update_timestamp(var->key,
 				      &timestamp,
@@ -214,7 +215,6 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		/* Update the variable bank with updated working copy */
 		clear_bank_list(variable_bank);
 		copy_bank_list(variable_bank, &staging_bank);
-		clear_bank_list(&staging_bank);
 	}
 
 cleanup:
@@ -222,6 +222,8 @@ cleanup:
 	 * For any failure in processing update queue, we clear the update bank
 	 * and return failure
 	 */
+	free(newesl);
+	clear_bank_list(&staging_bank);
 	clear_bank_list(update_bank);
 
 	return rc;
