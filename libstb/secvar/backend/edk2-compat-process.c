@@ -20,32 +20,32 @@
 
 bool setup_mode;
 
-int update_variable_in_bank(struct secvar *secvar, const char *data,
+int update_variable_in_bank(struct secvar *update_var, const char *data,
 			    const uint64_t dsize, struct list_head *bank)
 {
-	struct secvar_node *node;
+	struct secvar *var;
 
-	node = find_secvar(secvar->key, secvar->key_len, bank);
-	if (!node)
+	var = find_secvar(update_var->key, update_var->key_len, bank);
+	if (!var)
 		return OPAL_EMPTY;
 
         /* Reallocate the data memory, if there is change in data size */
-	if (node->size < dsize)
-		if (realloc_secvar(node, dsize))
+	if (var->data_size < dsize)
+		if (realloc_secvar(var, dsize))
 			return OPAL_NO_MEM;
 
 	if (dsize && data)
-		memcpy(node->var->data, data, dsize);
-	node->var->data_size = dsize;
+		memcpy(var->data, data, dsize);
+	var->data_size = dsize;
 
         /* Clear the volatile bit only if updated with positive data size */
 	if (dsize)
-		node->flags &= ~SECVAR_FLAG_VOLATILE;
+		var->flags &= ~SECVAR_FLAG_VOLATILE;
 	else
-		node->flags |= SECVAR_FLAG_VOLATILE;
+		var->flags |= SECVAR_FLAG_VOLATILE;
 
-	if (key_equals(secvar->key, "PK") || key_equals(secvar->key, "HWKH"))
-		node->flags |= SECVAR_FLAG_PRIORITY;
+	if (key_equals(update_var->key, "PK") || key_equals(update_var->key, "HWKH"))
+		var->flags |= SECVAR_FLAG_PRIORITY;
 
 	return 0;
 }
@@ -603,7 +603,7 @@ bool is_pkcs7_sig_format(const void *data)
 	return !memcmp(&auth->auth_info.cert_type, &pkcs7_guid, 16);
 }
 
-int process_update(const struct secvar_node *update, char **newesl,
+int process_update(const struct secvar *update, char **newesl,
 		   int *new_data_size, struct efi_time *timestamp,
 		   struct list_head *bank, char *last_timestamp)
 {
@@ -613,16 +613,16 @@ int process_update(const struct secvar_node *update, char **newesl,
 	const char *key_authority[3];
 	char *tbhbuffer = NULL;
 	size_t tbhbuffersize = 0;
-	struct secvar_node *anode = NULL;
+	struct secvar *avar = NULL;
 	int rc = 0;
 	int i;
 
 	/* We need to split data into authentication descriptor and new ESL */
-	auth_buffer_size = get_auth_descriptor2(update->var->data,
-						update->var->data_size,
+	auth_buffer_size = get_auth_descriptor2(update->data,
+						update->data_size,
 						&auth_buffer);
 	if ((auth_buffer_size < 0)
-	     || (update->var->data_size < auth_buffer_size)) {
+	     || (update->data_size < auth_buffer_size)) {
 		prlog(PR_ERR, "Invalid auth buffer size\n");
 		rc = auth_buffer_size;
 		goto out;
@@ -637,15 +637,15 @@ int process_update(const struct secvar_node *update, char **newesl,
 
 	memcpy(timestamp, auth_buffer, sizeof(struct efi_time));
 
-	rc = check_timestamp(update->var->key, timestamp, last_timestamp);
+	rc = check_timestamp(update->key, timestamp, last_timestamp);
 	/* Failure implies probably an older command being resubmitted */
 	if (rc != OPAL_SUCCESS) {
-		prlog(PR_INFO, "Timestamp verification failed for key %s\n", update->var->key);
+		prlog(PR_INFO, "Timestamp verification failed for key %s\n", update->key);
 		goto out;
 	}
 
 	/* Calculate the size of new ESL data */
-	*new_data_size = update->var->data_size - auth_buffer_size;
+	*new_data_size = update->data_size - auth_buffer_size;
 	if (*new_data_size < 0) {
 		prlog(PR_ERR, "Invalid new ESL (new data content) size\n");
 		rc = OPAL_PARAMETER;
@@ -656,13 +656,13 @@ int process_update(const struct secvar_node *update, char **newesl,
 		rc = OPAL_NO_MEM;
 		goto out;
 	}
-	memcpy(*newesl, update->var->data + auth_buffer_size, *new_data_size);
+	memcpy(*newesl, update->data + auth_buffer_size, *new_data_size);
 
 	/* Validate the new ESL is in right format */
-	rc = validate_esl_list(update->var->key, *newesl, *new_data_size);
+	rc = validate_esl_list(update->key, *newesl, *new_data_size);
 	if (rc < 0) {
 		prlog(PR_ERR, "ESL validation failed for key %s with error %04x\n",
-		      update->var->key, rc);
+		      update->key, rc);
 		goto out;
 	}
 
@@ -672,7 +672,7 @@ int process_update(const struct secvar_node *update, char **newesl,
 	}
 
 	/* Prepare the data to be verified */
-	tbhbuffer = get_hash_to_verify(update->var->key, *newesl, *new_data_size,
+	tbhbuffer = get_hash_to_verify(update->key, *newesl, *new_data_size,
 				timestamp);
 	if (!tbhbuffer) {
 		rc = OPAL_INTERNAL_ERROR;
@@ -680,23 +680,23 @@ int process_update(const struct secvar_node *update, char **newesl,
 	}
 
 	/* Get the authority to verify the signature */
-	get_key_authority(key_authority, update->var->key);
+	get_key_authority(key_authority, update->key);
 
 	/*
 	 * Try for all the authorities that are allowed to sign.
 	 * For eg. db/dbx can be signed by both PK or KEK
 	 */
 	for (i = 0; key_authority[i] != NULL; i++) {
-		prlog(PR_DEBUG, "key is %s\n", update->var->key);
+		prlog(PR_DEBUG, "key is %s\n", update->key);
 		prlog(PR_DEBUG, "key authority is %s\n", key_authority[i]);
-		anode = find_secvar(key_authority[i], strlen(key_authority[i]) + 1,
+		avar = find_secvar(key_authority[i], strlen(key_authority[i]) + 1,
 				    bank);
-		if (!anode || !anode->var->data_size)
+		if (!avar || !avar->data_size)
 			continue;
 
 		/* Verify the signature */
 		rc = verify_signature(auth, tbhbuffer, tbhbuffersize,
-				      anode->var);
+				      avar);
 
 		/* Break if signature verification is successful */
 		if (rc == OPAL_SUCCESS)
