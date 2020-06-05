@@ -58,4 +58,8 @@ extern struct tpmnv_ops_s tpmnv_ops;
 extern const uint8_t tpmnv_vars_name[];
 extern const uint8_t tpmnv_control_name[];
 
+extern int flash_secboot_info(uint32_t *total_size);
+extern int flash_secboot_read(void *dst, uint32_t src, uint32_t len);
+extern int flash_secboot_write(uint32_t dst, void *src, uint32_t len);
+
 #endif
