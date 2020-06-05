@@ -97,7 +97,7 @@ bool flash_unregister(void)
 	return true;
 }
 
-static int flash_secboot_info(uint32_t *total_size)
+int flash_secboot_info(uint32_t *total_size)
 {
 	int rc;
 
@@ -115,7 +115,7 @@ static int flash_secboot_info(uint32_t *total_size)
 	return rc;
 }
 
-static int flash_secboot_read(void *dst, uint32_t src, uint32_t len)
+int flash_secboot_read(void *dst, uint32_t src, uint32_t len)
 {
 	int rc;
 
@@ -151,7 +151,7 @@ out:
 	return rc;
 }
 
-static int flash_secboot_write(uint32_t dst, void *src, uint32_t len)
+int flash_secboot_write(uint32_t dst, void *src, uint32_t len)
 {
 	int rc;
 
@@ -303,10 +303,6 @@ static int flash_secboot_probe(struct flash *flash, struct ffs_handle *ffs)
 	secboot_flash = flash;
 	secboot_offset = start;
 	secboot_size = ecc ? ecc_buffer_size_minus_ecc(size) : size;
-
-	platform.secboot_info = flash_secboot_info;
-	platform.secboot_read = flash_secboot_read;
-	platform.secboot_write = flash_secboot_write;
 
 	return 0;
 }
