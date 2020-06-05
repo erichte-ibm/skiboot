@@ -39,7 +39,7 @@ static int tpm_init(void)
 	if (tpm_ready)
 		return 0;
 
-	rc = platform.secboot_read(&fakenv, fakenv_offset, sizeof(struct fake_tpmnv));
+	rc = flash_secboot_read(&fakenv, fakenv_offset, sizeof(struct fake_tpmnv));
 	if (rc)
 		return rc;
 
@@ -68,7 +68,7 @@ static int fakenv_write(TPMI_RH_NV_INDEX nvIndex, void *buf,
 	memcpy(nv_index_address(nvIndex) + off, buf, bufsize);
 
 	/* Just write the whole NV struct for now */
-	return platform.secboot_write(fakenv_offset, &fakenv, sizeof(struct fake_tpmnv));
+	return flash_secboot_write(fakenv_offset, &fakenv, sizeof(struct fake_tpmnv));
 }
 
 static int fakenv_definespace(TPMI_RH_NV_INDEX nvIndex, uint16_t dataSize)
