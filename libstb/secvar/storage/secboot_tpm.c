@@ -113,7 +113,7 @@ static int secboot_format(void)
 		return rc;
 	}
 
-	rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
+	rc = flash_secboot_write(0, secboot_image, sizeof(struct secboot));
 	if (rc)
 		prlog(PR_ERR, "Could not write formatted data to PNOR, rc=%d\n", rc);
 
@@ -208,7 +208,7 @@ static int secboot_tpm_write_variable_bank(struct list_head *bank)
 		goto out;
 
 	/* Write new variable bank to pnor */
-	rc = platform.secboot_write(0, secboot_image, sizeof(struct secboot));
+	rc = flash_secboot_write(0, secboot_image, sizeof(struct secboot));
 	if (rc)
 		goto out;
 
@@ -238,7 +238,7 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
 		if (rc)
 			break;
 
-		rc = platform.secboot_write(0, secboot_image,
+		rc = flash_secboot_write(0, secboot_image,
 					    sizeof(struct secboot));
 		break;
 	default:
@@ -466,13 +466,10 @@ static int secboot_tpm_store_init(void)
 	if (secboot_image)
 		return OPAL_SUCCESS;
 
-	if (!platform.secboot_info)
-		return OPAL_UNSUPPORTED;
-
 	prlog(PR_DEBUG, "Initializing for pnor+tpm based platform\n");
 
 	/* Initialize SECBOOT first, we may need to format this later */
-	rc = platform.secboot_info(&secboot_size);
+	rc = flash_secboot_info(&secboot_size);
 	if (rc) {
 		prlog(PR_ERR, "error %d retrieving keystore info\n", rc);
 		goto error;
@@ -492,7 +489,7 @@ static int secboot_tpm_store_init(void)
 	}
 
 	/* Read in the PNOR data, bank hash is checked on call to .load_bank() */
-	rc = platform.secboot_read(secboot_image, 0, sizeof(struct secboot));
+	rc = flash_secboot_read(secboot_image, 0, sizeof(struct secboot));
 	if (rc) {
 		prlog(PR_ERR, "failed to read the secboot partition, rc=%d\n", rc);
 		goto error;
