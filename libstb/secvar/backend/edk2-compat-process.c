@@ -332,19 +332,17 @@ int update_timestamp(const char *key, const struct efi_time *timestamp, char *la
 
 static uint64_t unpack_timestamp(const struct efi_time *timestamp)
 {
-	uint64_t val;
-	void *tmp = &val;
-
-	u16 year = le32_to_cpu(timestamp->year);
+	uint64_t val = 0;
+	uint16_t year = le32_to_cpu(timestamp->year);
 
 	/* pad1, nanosecond, timezone, daylight and pad2 are meant to be zero */
-	memcpy(tmp, &(timestamp->pad1), 1);
-	memcpy(tmp+1, &(timestamp->second), 1);
-	memcpy(tmp+2, &(timestamp->minute), 1);
-	memcpy(tmp+3, &(timestamp->hour), 1);
-	memcpy(tmp+4, &(timestamp->day), 1);
-	memcpy(tmp+5, &(timestamp->month), 1);
-	memcpy(tmp+6, &year, 2);
+	val |= ((uint64_t) timestamp->pad1 & 0xFF) << 0;
+	val |= ((uint64_t) timestamp->second & 0xFF) << (1*8);
+	val |= ((uint64_t) timestamp->minute & 0xFF) << (2*8);
+	val |= ((uint64_t) timestamp->hour & 0xFF) << (3*8);
+	val |= ((uint64_t) timestamp->day & 0xFF) << (4*8);
+	val |= ((uint64_t) timestamp->month & 0xFF) << (5*8);
+	val |= ((uint64_t) year) << (6*8);
 
 	return val;
 }
