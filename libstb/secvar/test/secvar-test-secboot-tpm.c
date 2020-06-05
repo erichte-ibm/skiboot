@@ -14,19 +14,19 @@ char *secboot_buffer;
 
 const char *secvar_test_name = "secboot_tpm";
 
-static int secboot_read(void *dst, uint32_t src, uint32_t len)
+int flash_secboot_read(void *dst, uint32_t src, uint32_t len)
 {
 	memcpy(dst, secboot_buffer + src, len);
 	return 0;
 }
 
-static int secboot_write(uint32_t dst, void *src, uint32_t len)
+int flash_secboot_write(uint32_t dst, void *src, uint32_t len)
 {
 	memcpy(secboot_buffer + dst, src, len);
 	return 0;
 }
 
-static int secboot_info(uint32_t *total_size)
+int flash_secboot_info(uint32_t *total_size)
 {
 	*total_size = ARBITRARY_SECBOOT_SIZE;
 	return 0;
@@ -45,10 +45,6 @@ int run_test(void)
 {
 	int rc;
 	struct secvar *tmp;
-
-	platform.secboot_read = secboot_read;
-	platform.secboot_write = secboot_write;
-	platform.secboot_info = secboot_info;
 
 	secboot_buffer = zalloc(ARBITRARY_SECBOOT_SIZE);
 
