@@ -221,10 +221,6 @@ struct platform {
 
 	int (*secvar_init)(void);
 
-	int (*secboot_info)(uint32_t *total_size);
-	int (*secboot_read)(void *dst, uint32_t src, uint32_t len);
-	int (*secboot_write)(uint32_t dst, void *src, uint32_t len);
-
 	/*
 	 * OCC timeout. This return how long we should wait for the OCC
 	 * before timing out. This lets us use a high value on larger FSP
