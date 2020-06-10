@@ -43,7 +43,7 @@ const uint8_t tpmnv_control_name[] = {
 
 
 /* Calculate a SHA256 hash over the supplied buffer */
-static int calc_bank_hash(char *target_hash, char *source_buf, uint64_t size)
+static int calc_bank_hash(char *target_hash, const char *source_buf, uint64_t size)
 {
 	mbedtls_sha256_context ctx;
 	int rc;
@@ -137,7 +137,7 @@ static int secboot_format(void)
  * Returns the advanced target pointer,
  *   NULL if advanced pointer would exceed the supplied bound
  */
-static char *secboot_serialize_secvar(char *target, struct secvar *var, char *end)
+static char *secboot_serialize_secvar(char *target, const struct secvar *var, const char *end)
 {
 	if ((target + sizeof(uint64_t) + sizeof(uint64_t)
 		+ var->key_len + var->data_size) > end)
@@ -157,7 +157,8 @@ static char *secboot_serialize_secvar(char *target, struct secvar *var, char *en
 
 
 /* Flattens a linked-list bank into a contiguous buffer for writing */
-static int secboot_serialize_bank(struct list_head *bank, char *target, size_t target_size, int flags)
+static int secboot_serialize_bank(const struct list_head *bank, char *target,
+				  size_t target_size, int flags)
 {
 	struct secvar *var;
 	char *end = target + target_size;
@@ -186,7 +187,7 @@ static int secboot_serialize_bank(struct list_head *bank, char *target, size_t t
 }
 
 /* Helper for the variable-bank specific writing logic */
-static int secboot_tpm_write_variable_bank(struct list_head *bank)
+static int secboot_tpm_write_variable_bank(const struct list_head *bank)
 {
 	int rc;
 	uint64_t bit;
@@ -234,7 +235,7 @@ out:
 	return rc;
 }
 
-static int secboot_tpm_write_bank(struct list_head *bank, int section)
+static int secboot_tpm_write_bank(const struct list_head *bank, int section)
 {
 	int rc;
 
@@ -265,7 +266,7 @@ static int secboot_tpm_write_bank(struct list_head *bank, int section)
  * Returns an advanced pointer, and an allocated secvar in *var.
  * Returns NULL if out of bounds reached, or out of memory.
  */
-static int secboot_deserialize_secvar(struct secvar **var, char **src, char *end)
+static int secboot_deserialize_secvar(struct secvar **var, const char **src, const char *end)
 {
 	uint64_t key_len;
 	uint64_t data_size;
@@ -322,7 +323,8 @@ static int secboot_deserialize_secvar(struct secvar **var, char **src, char *end
 
 
 /* Load variables from a flattened buffer into a bank list */
-static int secboot_tpm_deserialize_from_buffer(struct list_head *bank, char *src, uint64_t size, uint64_t flags)
+static int secboot_tpm_deserialize_from_buffer(struct list_head *bank, const char *src,
+					       uint64_t size, uint64_t flags)
 {
 	struct secvar *var;
 	char *cur;
