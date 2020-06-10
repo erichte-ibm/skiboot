@@ -16,8 +16,8 @@ enum {
 };
 
 
-#define SECVAR_FLAG_VOLATILE	0x1 // Instructs storage driver to ignore variable on writes
-#define SECVAR_FLAG_PROTECTED	0x2 // Hint for storage driver to store in lockable flash
+#define SECVAR_FLAG_VOLATILE	0x1 /* Instructs storage driver to ignore variable on writes */
+#define SECVAR_FLAG_PROTECTED	0x2 /* Instructs storage driver to store in lockable flash */
 
 struct secvar {
 	struct list_node link;
