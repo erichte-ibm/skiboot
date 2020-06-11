@@ -235,7 +235,7 @@ out:
 	return rc;
 }
 
-static int secboot_tpm_write_bank(const struct list_head *bank, int section)
+static int secboot_tpm_write_bank(struct list_head *bank, int section)
 {
 	int rc;
 
@@ -266,7 +266,7 @@ static int secboot_tpm_write_bank(const struct list_head *bank, int section)
  * Returns an advanced pointer, and an allocated secvar in *var.
  * Returns NULL if out of bounds reached, or out of memory.
  */
-static int secboot_deserialize_secvar(struct secvar **var, const char **src, const char *end)
+static int secboot_deserialize_secvar(struct secvar **var, char **src, const char *end)
 {
 	uint64_t key_len;
 	uint64_t data_size;
@@ -287,12 +287,12 @@ static int secboot_deserialize_secvar(struct secvar **var, const char **src, con
 
 	if (key_len > SECVAR_MAX_KEY_LEN) {
 		prlog(PR_ERR, "Deserialization failed: key length exceeded maximum value"
-			"%llu > %llu", key_len, SECVAR_MAX_KEY_LEN);
+			"%llu > %u", key_len, SECVAR_MAX_KEY_LEN);
 		return OPAL_RESOURCE;
 	}
 	if (data_size > SECBOOT_TPM_MAX_VAR_SIZE) {
 		prlog(PR_ERR, "Deserialization failed: data size exceeded maximum value"
-			"%llu > %llu", key_len, SECBOOT_TPM_MAX_VAR_SIZE);
+			"%llu > %u", key_len, SECBOOT_TPM_MAX_VAR_SIZE);
 		return OPAL_RESOURCE;
 	}
 
@@ -323,7 +323,7 @@ static int secboot_deserialize_secvar(struct secvar **var, const char **src, con
 
 
 /* Load variables from a flattened buffer into a bank list */
-static int secboot_tpm_deserialize_from_buffer(struct list_head *bank, const char *src,
+static int secboot_tpm_deserialize_from_buffer(struct list_head *bank, char *src,
 					       uint64_t size, uint64_t flags)
 {
 	struct secvar *var;
