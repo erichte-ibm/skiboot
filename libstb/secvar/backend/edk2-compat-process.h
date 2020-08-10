@@ -27,6 +27,7 @@
 
 #define EDK2_MAX_KEY_LEN        SECVAR_MAX_KEY_LEN
 #define key_equals(a,b) (!strncmp(a, b, EDK2_MAX_KEY_LEN))
+#define uuid_equals(a,b) (!memcmp(a, b, UUID_SIZE))
 
 extern bool setup_mode;
 extern struct list_head staging_bank;
