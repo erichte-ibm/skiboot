@@ -13,6 +13,9 @@
 #include "./data/multipleKEK.h"
 #include "./data/multipleDB.h"
 #include "./data/multiplePK.h"
+#include "./data/dbx.h"
+#include "./data/dbxsha512.h"
+#include "./data/dbxmalformed.h"
 
 int reset_keystore(struct list_head *bank __unused) { return 0; }
 int add_hw_key_hash(struct list_head *bank __unused) { return 0; }
@@ -128,6 +131,16 @@ int run_test()
 	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_PERMISSION == rc);
 
+	// Add valid sha256 dbx
+	printf("Add sha256 dbx\n");
+	tmp = new_secvar("dbx", 4, dbxauth, dbx_auth_len, 0);
+	ASSERT(0 == edk2_compat_validate(tmp));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process(&variable_bank, &update_bank);
+	ASSERT(OPAL_SUCCESS == rc);
+
 	// Add invalid KEK, .process(), should fail
 	printf("Add invalid KEK\n");
 	tmp = new_secvar("KEK", 4, InvalidKEK_auth, sizeof(InvalidKEK_auth), 0);
@@ -207,6 +220,33 @@ int run_test()
 	// Add multiple PK. 
 	printf("Multiple PK\n");
 	tmp = new_secvar("PK", 3, multiplePK_auth, multiplePK_auth_len, 0);
+	ASSERT(0 == edk2_compat_validate(tmp));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process(&variable_bank, &update_bank);
+	ASSERT(OPAL_SUCCESS != rc);
+
+	printf("Add invalid dbx\n");
+	tmp = new_secvar("dbx", 4, wrongdbxauth, wrong_dbx_auth_len, 0);
+	ASSERT(0 == edk2_compat_validate(tmp));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process(&variable_bank, &update_bank);
+	ASSERT(OPAL_SUCCESS != rc);
+
+	printf("Add sha512 dbx\n");
+	tmp = new_secvar("dbx", 4, dbx512, dbx512_auth_len, 0);
+	ASSERT(0 == edk2_compat_validate(tmp));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process(&variable_bank, &update_bank);
+	ASSERT(OPAL_SUCCESS == rc);
+
+	printf("Add db(cert) as dbx\n");
+	tmp = new_secvar("dbx", 4, DB_auth, sizeof(DB_auth), 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
