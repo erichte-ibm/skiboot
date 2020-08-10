@@ -20,6 +20,14 @@
 
 bool setup_mode;
 
+static struct hash_guids allow_hashes[MAX_SUPPORTED_HASH_ALGS] = {
+    { .guid = EFI_CERT_SHA1_GUID, .size = 20 },
+    { .guid = EFI_CERT_SHA224_GUID, .size = 28 },
+    { .guid = EFI_CERT_SHA256_GUID, .size = 32 },
+    { .guid = EFI_CERT_SHA384_GUID, .size = 48 },
+    { .guid = EFI_CERT_SHA512_GUID, .size = 64 },
+};
+
 int update_variable_in_bank(struct secvar *update_var, const char *data,
 			    const uint64_t dsize, struct list_head *bank)
 {
@@ -204,25 +212,67 @@ int get_auth_descriptor2(const void *buf, const size_t buflen, void **auth_buffe
 	return auth_buffer_size;
 }
 
+static int validate_cert(char *signing_cert, int signing_cert_size)
+{
+	mbedtls_x509_crt x509;
+	char *x509_buf = NULL;
+	int rc;
+
+	mbedtls_x509_crt_init(&x509);
+	rc = mbedtls_x509_crt_parse(&x509, signing_cert, signing_cert_size);
+
+	/* If failure in parsing the certificate, exit */
+	if(rc) {
+		prlog(PR_ERR, "X509 certificate parsing failed %04x\n", rc);
+		return OPAL_PARAMETER;
+	}
+
+	x509_buf = zalloc(CERT_BUFFER_SIZE);
+	rc = mbedtls_x509_crt_info(x509_buf, CERT_BUFFER_SIZE, "CRT:", &x509);
+
+	/* If failure in reading the certificate, exit */
+	if (rc < 0) {
+		rc = OPAL_PARAMETER;
+	} else {
+		prlog(PR_INFO, "%s ", x509_buf);
+		rc = 0;
+	}
+
+	mbedtls_x509_crt_free(&x509);
+	free(x509_buf);
+	x509_buf = NULL;
+	return rc;
+}
+
 int validate_esl_list(const char *key, const char *esl, const size_t size)
 {
 	int count = 0;
-	int signing_cert_size;
-	char *signing_cert = NULL;
-	mbedtls_x509_crt x509;
-	char *x509_buf = NULL;
+	int dsize;
+	char *data = NULL;
 	int eslvarsize = size;
 	int eslsize;
 	int rc = OPAL_SUCCESS;
 	int offset = 0;
+	EFI_SIGNATURE_LIST *list = NULL;
+	int i;
 
 	while (eslvarsize > 0) {
 		prlog(PR_DEBUG, "esl var size size is %d offset is %d\n", eslvarsize, offset);
 		if (eslvarsize < sizeof(EFI_SIGNATURE_LIST))
 			break;
 
+		/* Check Supported ESL Type */
+		list = get_esl_signature_list(esl, eslvarsize);
+
+		if (!list)
+			return OPAL_PARAMETER;
+
+		prlog(PR_DEBUG, "size of signature list size is %u\n",
+				le32_to_cpu(list->SignatureListSize));
+
 		/* Calculate the size of the ESL */
-		eslsize = get_esl_signature_list_size(esl, eslvarsize);
+		eslsize = le32_to_cpu(list->SignatureListSize);
+
 		/* If could not extract the size */
 		if (eslsize <= 0) {
 			prlog(PR_ERR, "Invalid size of the ESL\n");
@@ -231,53 +281,38 @@ int validate_esl_list(const char *key, const char *esl, const size_t size)
 		}
 
 		/* Extract the certificate from the ESL */
-		signing_cert_size = get_esl_cert(esl,
-						 eslvarsize,
-						 &signing_cert);
-		if (signing_cert_size < 0) {
-			rc = signing_cert_size;
+		dsize = get_esl_cert(esl, eslvarsize, &data);
+		if (dsize < 0) {
+			rc = dsize;
 			break;
 		}
 
-		mbedtls_x509_crt_init(&x509);
-		rc = mbedtls_x509_crt_parse(&x509,
-					    signing_cert,
-					    signing_cert_size);
-
-		/* If failure in parsing the certificate, exit */
-		if(rc) {
-			prlog(PR_INFO, "X509 certificate parsing failed %04x\n", rc);
-			rc = OPAL_PARAMETER;
-			break;
+		if (key_equals(key, "dbx")) {
+			for (i = 0; i < MAX_SUPPORTED_HASH_ALGS; i++) {
+				if (uuid_equals(&list->SignatureType, &allow_hashes[i].guid)
+						&& (dsize == allow_hashes[i].size))
+					break;
+			}
+			if (i >= MAX_SUPPORTED_HASH_ALGS) {
+				rc = OPAL_PARAMETER;
+				break;
+			}
+		} else {
+		       if (!uuid_equals(&list->SignatureType, &EFI_CERT_X509_GUID)
+			   || validate_cert(data, dsize)) {
+				rc = OPAL_PARAMETER;
+				break;
+		       }
 		}
 
-		x509_buf = zalloc(CERT_BUFFER_SIZE);
-		rc = mbedtls_x509_crt_info(x509_buf,
-					   CERT_BUFFER_SIZE,
-					   "CRT:",
-					   &x509);
-		prlog(PR_INFO, "%s ", x509_buf);
-
-		/* If failure in reading the certificate, exit */
-		if (rc < 0) {
-			prlog(PR_INFO, "Failed to show X509 certificate info %04x\n", rc);
-			rc = OPAL_PARAMETER;
-			free(x509_buf);
-			break;
-		}
-		rc = 0;
-
-		free(x509_buf);
-		x509_buf = NULL;
 		count++;
 
 		/* Look for the next ESL */
 		offset = offset + eslsize;
 		eslvarsize = eslvarsize - eslsize;
-		mbedtls_x509_crt_free(&x509);
-		free(signing_cert);
+		free(data);
 		/* Since we are going to allocate again in the next iteration */
-		signing_cert = NULL;
+		data = NULL;
 	}
 
 	if (rc == OPAL_SUCCESS) {

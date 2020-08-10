@@ -26,10 +26,17 @@
 #define MBEDTLS_ERR_BUFFER_SIZE 1024
 
 #define EDK2_MAX_KEY_LEN        SECVAR_MAX_KEY_LEN
+#define MAX_SUPPORTED_HASH_ALGS	5
 #define key_equals(a,b) (!strncmp(a, b, EDK2_MAX_KEY_LEN))
+#define uuid_equals(a,b) (!memcmp(a, b, UUID_SIZE))
 
 extern bool setup_mode;
 extern struct list_head staging_bank;
+
+struct hash_guids {
+    uuid_t guid;
+    int size;
+};
 
 /* Update the variable in the variable bank with the new value. */
 int update_variable_in_bank(struct secvar *update_var, const char *data,
