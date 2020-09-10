@@ -41,6 +41,17 @@ const uint8_t tpmnv_control_name[] = {
 	0x85, 0x33, 0x5b, 0xa6, 0xf0, 0x63, 0x73, 0xd0,
 };
 
+const uint8_t tpmnv_vars_prov_name[] = {
+	0x00, 0x0b, 0x58, 0x36, 0x2c, 0xbf, 0xec, 0x0e, 0xcc, 0xbf, 0xa9, 0x41, 0x94,
+	0xe9, 0x95, 0xe8, 0x3b, 0xd7, 0x8b, 0x52, 0xac, 0x61, 0x6f, 0xe6, 0x42, 0x93,
+	0xbb, 0x5a, 0x79, 0x9f, 0xcc, 0x60, 0x5e, 0x8d,
+};
+
+const uint8_t tpmnv_control_prov_name[] = {
+	0x00, 0x0b, 0x7b, 0xd6, 0x02, 0xac, 0xf5, 0x34, 0x54, 0x5c, 0x3e, 0xda, 0xe5,
+	0xb2, 0xe4, 0x93, 0x4f, 0x36, 0xfb, 0x7f, 0xea, 0xbe, 0xfa, 0x3c, 0xfe, 0xed,
+	0x6a, 0x12, 0xfb, 0xc8, 0xf7, 0x92, 0x0e, 0xd3,
+};
 
 /* Calculate a SHA256 hash over the supplied buffer */
 static int calc_bank_hash(char *target_hash, const char *source_buf, uint64_t size)
@@ -400,38 +411,46 @@ static int secboot_tpm_load_bank(struct list_head *bank, int section)
 	return OPAL_HARDWARE;
 }
 
-
-/* Ensure the NV indices were defined with the correct set of attributes */
-static int secboot_tpm_check_tpmnv_attrs(void)
+static int secboot_tpm_get_tpmnv_names(char *nv_vars_name, char *nv_control_name)
 {
 	TPMS_NV_PUBLIC nv_public; /* Throwaway, we only want the name field */
-	TPM2B_NAME nv_vars_name;
-	TPM2B_NAME nv_control_name;
+	TPM2B_NAME vars_tmp;
+	TPM2B_NAME control_tmp;
 	int rc;
 
 	rc = tpmnv_ops.readpublic(SECBOOT_TPMNV_VARS_INDEX,
 				  &nv_public,
-				  &nv_vars_name);
+				  &vars_tmp);
 	if (rc) {
 		prlog(PR_ERR, "Failed to readpublic from the VARS index, rc=%d\n", rc);
 		return rc;
 	}
 	rc = tpmnv_ops.readpublic(SECBOOT_TPMNV_CONTROL_INDEX,
 				  &nv_public,
-				  &nv_control_name);
+				  &control_tmp);
 	if (rc) {
 		prlog(PR_ERR, "Failed to readpublic from the CONTROL index, rc=%d\n", rc);
 		return rc;
 	}
 
+	memcpy(nv_vars_name, vars_tmp.t.name, MIN(sizeof(tpmnv_vars_name), vars_tmp.t.size));
+	memcpy(nv_control_name, control_tmp.t.name, MIN(sizeof(tpmnv_control_name), control_tmp.t.size));
+
+	return OPAL_SUCCESS;
+}
+
+
+/* Ensure the NV indices were defined with the correct set of attributes */
+static int secboot_tpm_check_tpmnv_attrs(char *nv_vars_name, char *nv_control_name)
+{
 	if (memcmp(tpmnv_vars_name,
-		   nv_vars_name.t.name,
+		   nv_vars_name,
 		   sizeof(tpmnv_vars_name))) {
 		prlog(PR_ERR, "VARS index not defined with the correct attributes\n");
 		return OPAL_RESOURCE;
 	}
 	if (memcmp(tpmnv_control_name,
-		   nv_control_name.t.name,
+		   nv_control_name,
 		   sizeof(tpmnv_control_name))) {
 		prlog(PR_ERR, "CONTROL index not defined with the correct attributes\n");
 		return OPAL_RESOURCE;
@@ -440,6 +459,20 @@ static int secboot_tpm_check_tpmnv_attrs(void)
 	return OPAL_SUCCESS;
 }
 
+static int secboot_tpm_check_provisioned_indices(char *nv_vars_name, char *nv_control_name)
+{
+	// Check for provisioned NV indices, redefine them if detected.
+	if (!memcmp(tpmnv_vars_prov_name,
+			nv_vars_name,
+			sizeof(tpmnv_vars_prov_name))  &&
+		!memcmp(tpmnv_control_prov_name,
+			nv_control_name,
+			sizeof(tpmnv_control_prov_name))) {
+		return 1;
+	}
+
+	return 0;
+}
 
 static int secboot_tpm_define_indices(void)
 {
@@ -465,12 +498,40 @@ static int secboot_tpm_define_indices(void)
 	return secboot_format();
 }
 
+static int secboot_tpm_undefine_indices(bool *vars_defined, bool *control_defined)
+{
+	int rc;
+
+	if (vars_defined) {
+		rc = tpmnv_ops.undefinespace(SECBOOT_TPMNV_VARS_INDEX);
+		if (rc) {
+			prlog(PR_ERR, "Failed to undefine VARS, something is seriously wrong\n");
+			return rc;
+		}
+	}
+
+	if (control_defined) {
+		rc = tpmnv_ops.undefinespace(SECBOOT_TPMNV_CONTROL_INDEX);
+		if (rc) {
+			prlog(PR_ERR, "Failed to undefine CONTROL, something is seriously wrong\n");
+			return rc;
+		}
+	}
+
+	*vars_defined = *control_defined = false;
+
+	return OPAL_SUCCESS;
+}
+
+
 static int secboot_tpm_store_init(void)
 {
 	int rc;
 	unsigned int secboot_size;
 
 	TPMI_RH_NV_INDEX *indices = NULL;
+	char nv_vars_name[sizeof(tpmnv_vars_name)];
+	char nv_control_name[sizeof(tpmnv_control_name)];
 	size_t count = 0;
 	bool control_defined = false;
 	bool vars_defined = false;
@@ -534,45 +595,59 @@ static int secboot_tpm_store_init(void)
 	/* Undefine the NV indices if physical presence has been asserted */
 	if (secvar_check_physical_presence()) {
 		prlog(PR_INFO, "Physical presence asserted, redefining NV indices, and resetting keystore\n");
+		rc = secboot_tpm_undefine_indices(&vars_defined, &control_defined);
+		if (rc)
+			goto error;
 
-		if (vars_defined) {
-			rc = tpmnv_ops.undefinespace(SECBOOT_TPMNV_VARS_INDEX);
-			if (rc) {
-				prlog(PR_ERR, "Physical presence failed to undefine VARS, something is seriously wrong\n");
-				goto error;
-			}
-		}
+		rc = secboot_tpm_define_indices();
+		if (rc)
+			goto error;
 
-		if (control_defined) {
-			rc = tpmnv_ops.undefinespace(SECBOOT_TPMNV_CONTROL_INDEX);
-			if (rc) {
-				prlog(PR_ERR, "Physical presence failed to undefine CONTROL, something is seriously wrong\n");
-				goto error;
-			}
-		}
-
-		vars_defined = control_defined = false;
+		/* Indices got defined and formatted, we're done here */
+		goto done;
 	}
-
 	/* Determine if we need to define the indices. These should BOTH be false or true */
 	if (!vars_defined && !control_defined) {
 		rc = secboot_tpm_define_indices();
 		if (rc)
 			goto error;
 
-		/* Indicies got defined and formatted, we're done here */
+		/* Indices got defined and formatted, we're done here */
 		goto done;
-	} else if (vars_defined ^ control_defined) {
+	}
+	if (vars_defined ^ control_defined) {
 		/* This should never happen. Both indices should be defined at the same
 		 * time. Otherwise something seriously went wrong. */
 		prlog(PR_ERR, "NV indices defined with unexpected attributes. Assert physical presence to clear\n");
 		goto error;
 	}
 
-	/* Ensure the NV indices were defined with the correct set of attributes */
-	rc = secboot_tpm_check_tpmnv_attrs();
+	/* Both indices are defined, now need to validate their contents */
+
+	rc = secboot_tpm_get_tpmnv_names(nv_vars_name, nv_control_name);
 	if (rc)
 		goto error;
+
+	/* Check for provisioned TPMNV indices, redefine them if detected */
+	if (secboot_tpm_check_provisioned_indices(nv_vars_name, nv_control_name)) {
+		prlog(PR_INFO, "Provisioned TPM NV indices detected, redefining NV indices, and resetting keystore\n");
+		rc = secboot_tpm_undefine_indices(&vars_defined, &control_defined);
+		if (rc)
+			goto error;
+
+		rc = secboot_tpm_define_indices();
+		if (rc)
+			goto error;
+
+		/* Indices got defined and formatted, we're done here */
+		goto done;
+	}
+
+	/* Otherwise, ensure the NV indices were defined with the correct set of attributes */
+	rc = secboot_tpm_check_tpmnv_attrs(nv_vars_name, nv_control_name);
+	if (rc)
+		goto error;
+
 
 	/* TPMNV indices exist, are correct, and weren't just formatted, so read them in */
 	rc = tpmnv_ops.read(SECBOOT_TPMNV_VARS_INDEX,
