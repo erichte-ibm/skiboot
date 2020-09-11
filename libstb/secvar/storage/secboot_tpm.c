@@ -25,9 +25,12 @@ struct tpmnv_control *tpmnv_control_image = NULL;
 const size_t tpmnv_vars_size = 1024;
 
 /* Expected TPM NV index name field from NV_ReadPublic given our known
- * set of attributes.
+ * set of attributes (see tss_nv_define_space).
  * See Part 1 Section 16, and Part 2 Section 13.5 of the TPM Specification
  * for how this is calculated
+ *
+ * These hashes are calculated and checked BEFORE TPM2_NV_WriteLock is called,
+ * which alters the hash slightly as it sets TPMA_NV_WRITELOCKED
  */
 const uint8_t tpmnv_vars_name[] = {
 	0x00, 0x0b, 0x94, 0x64, 0x36, 0x25, 0xfc, 0xc1, 0x1d, 0xc1, 0x0e, 0x28, 0xe7,
