@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
 /* Copyright 2020 IBM Corp. */
+
+#define MBEDTLS_PKCS7_C
 #include "secvar_common_test.c"
 #include "../backend/edk2-compat.c"
 #include "../backend/edk2-compat-process.c"
 #include "../secvar_util.c"
-#define MBEDTLS_PKCS7_C
 #include "../../crypto/pkcs7/pkcs7.c"
-#include "./data/edk2_test_data.h"
-#include "./data/PK1.h"
+#include "./data/PK.h"
 #include "./data/noPK.h"
 #include "./data/KEK.h"
+#include "./data/invalidkek.h"
+#include "./data/malformedkek.h"
+#include "./data/db.h"
+#include "./data/dbsigneddata.h"
+#include "./data/OldTSKEK.h"
 #include "./data/multipleKEK.h"
 #include "./data/multipleDB.h"
 #include "./data/multiplePK.h"
@@ -44,7 +49,7 @@ int run_test()
 
 	// Add PK to update and .process()
 	printf("Add PK");
-	tmp = new_secvar("PK", 3, PK1_auth, PK1_auth_len, 0);
+	tmp = new_secvar("PK", 3, PK_auth, PK_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -61,7 +66,7 @@ int run_test()
 
 	// Add db, should fail with no KEK
 	printf("Add db");
-	tmp = new_secvar("db", 3, DB_auth, sizeof(DB_auth), 0);
+	tmp = new_secvar("db", 3, DB_auth, DB_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -92,7 +97,7 @@ int run_test()
 
 	// Add valid KEK, .process(), timestamp check fails 
 
-	tmp = new_secvar("KEK", 4, ValidKEK_auth, ValidKEK_auth_len, 0);
+	tmp = new_secvar("KEK", 4, OldTS_KEK_auth, OldTS_KEK_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -107,7 +112,7 @@ int run_test()
 
 	// Add db, .process(), should succeed
 	printf("Add db again\n");
-	tmp = new_secvar("db", 3, DB_auth, sizeof(DB_auth), 0);
+	tmp = new_secvar("db", 3, DB_auth, DB_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -123,7 +128,7 @@ int run_test()
 
 	// Add db, .process(), should fail because of timestamp 
 	printf("Add db again\n");
-	tmp = new_secvar("db", 3, DB_auth, sizeof(DB_auth), 0);
+	tmp = new_secvar("db", 3, DB_auth, DB_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -143,7 +148,7 @@ int run_test()
 
 	// Add invalid KEK, .process(), should fail
 	printf("Add invalid KEK\n");
-	tmp = new_secvar("KEK", 4, InvalidKEK_auth, sizeof(InvalidKEK_auth), 0);
+	tmp = new_secvar("KEK", 4, InvalidKEK_auth, InvalidKEK_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -158,7 +163,7 @@ int run_test()
 
 	// Add ill formatted KEK, .process(), should fail
 	printf("Add invalid KEK\n");
-	tmp = new_secvar("KEK", 4, IllformatKEK_auth, IllformatKEK_auth_len, 0);
+	tmp = new_secvar("KEK", 4, MalformedKEK_auth, MalformedKEK_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
@@ -201,6 +206,16 @@ int run_test()
 	ASSERT(NULL != tmp);
 	ASSERT(0 != tmp->data_size);
 
+	// Add db with signeddata PKCS7 format.
+	printf("DB with signed data\n");
+	tmp = new_secvar("db", 3, dbsigneddata_auth, dbsigneddata_auth_len, 0);
+	ASSERT(0 == edk2_compat_validate(tmp));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process(&variable_bank, &update_bank);
+	ASSERT(OPAL_SUCCESS == rc);
+
 	// Delete PK. 
 	printf("Delete PK\n");
 	tmp = new_secvar("PK", 3, noPK_auth, noPK_auth_len, 0);
@@ -226,6 +241,7 @@ int run_test()
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_SUCCESS != rc);
+
 
 	printf("Add invalid dbx\n");
 	tmp = new_secvar("dbx", 4, wrongdbxauth, wrong_dbx_auth_len, 0);
