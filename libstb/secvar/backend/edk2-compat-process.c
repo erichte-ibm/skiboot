@@ -230,8 +230,6 @@ static bool validate_cert(char *signing_cert, int signing_cert_size)
 	if (rc < 0)
 		return false;
 
-	prlog(PR_INFO, "%s ", x509_buf);
-
 	return true;
 }
 
