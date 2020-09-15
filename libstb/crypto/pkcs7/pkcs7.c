@@ -39,6 +39,7 @@
 
 #if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
+#include "mbedtls/platform_util.h"
 #else
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,7 +53,6 @@
 #include "mbedtls/platform_time.h"
 #endif
 #if defined(MBEDTLS_HAVE_TIME_DATE)
-#include "mbedtls/platform_util.h"
 #include <time.h>
 #endif
 
@@ -583,11 +583,11 @@ void mbedtls_pkcs7_free( mbedtls_pkcs7 *pkcs7 )
     {
         name_prv = name_cur;
         name_cur = name_cur->next;
-        //mbedtls_platform_zeroize( name_prv, sizeof( mbedtls_x509_name ) );
+        mbedtls_platform_zeroize( name_prv, sizeof( mbedtls_x509_name ) );
         mbedtls_free( name_prv );
     }
 
-    //mbedtls_platform_zeroize( pkcs7, sizeof( mbedtls_pkcs7 ) );
+    mbedtls_platform_zeroize( pkcs7, sizeof( mbedtls_pkcs7 ) );
 }
 
 #endif
