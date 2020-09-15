@@ -427,7 +427,7 @@ static mbedtls_pkcs7* get_pkcs7(const struct efi_variable_authentication_2 *auth
 
 	mbedtls_pkcs7_init(pkcs7);
 	rc = mbedtls_pkcs7_parse_der( auth->auth_info.cert_data, len, pkcs7);
-	if (rc) {
+	if (rc <= 0) {
 		prlog(PR_ERR, "Parsing pkcs7 failed %04x\n", rc);
 		goto out;
 	}
