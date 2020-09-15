@@ -462,19 +462,24 @@ static int secboot_tpm_check_tpmnv_attrs(char *nv_vars_name, char *nv_control_na
 	return OPAL_SUCCESS;
 }
 
-static int secboot_tpm_check_provisioned_indices(char *nv_vars_name, char *nv_control_name)
+static bool secboot_tpm_check_provisioned_indices(char *nv_vars_name, char *nv_control_name)
 {
-	// Check for provisioned NV indices, redefine them if detected.
+	/* Check for provisioned NV indices, redefine them if detected. */
 	if (!memcmp(tpmnv_vars_prov_name,
 			nv_vars_name,
 			sizeof(tpmnv_vars_prov_name))  &&
 		!memcmp(tpmnv_control_prov_name,
 			nv_control_name,
 			sizeof(tpmnv_control_prov_name))) {
-		return 1;
+		return true;
 	}
 
-	return 0;
+	/*
+	 * If one matches but the other doesn't, do NOT redefine.
+	 * The next step should detect they don't match the expected values
+	 * and fail the boot.
+	 */
+	return false;
 }
 
 static int secboot_tpm_define_indices(void)
