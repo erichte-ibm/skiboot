@@ -4,8 +4,9 @@
 #include "../backend/edk2-compat.c"
 #include "../backend/edk2-compat-process.c"
 #include "../secvar_util.c"
-#define MBEDTLS_PKCS7_USE_C
+#define MBEDTLS_PKCS7_C
 #include "../../crypto/pkcs7/pkcs7.c"
+#include "../../crypto/pkcs7/pkcs7.h"
 //#include "./data/edk2_test_data.h"
 #include "./data/PK.h"
 #include "./data/PK1.h"
@@ -137,16 +138,6 @@ int run_test()
 	rc = edk2_compat_process(&variable_bank, &update_bank);
 	ASSERT(OPAL_PERMISSION == rc);
 
-	// Add db with signeddat PKCS7 format. 
-	printf("DB with signed data\n");
-	tmp = new_secvar("db", 3, dbsigneddata_auth, dbsigneddata_auth_len, 0);
-	ASSERT(0 == edk2_compat_validate(tmp));
-	list_add_tail(&update_bank, &tmp->link);
-	ASSERT(1 == list_length(&update_bank));
-
-	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
-
 	// Add valid sha256 dbx
 	printf("Add sha256 dbx\n");
 	tmp = new_secvar("dbx", 4, dbxauth, dbx_auth_len, 0);
@@ -216,6 +207,16 @@ int run_test()
 	tmp = find_secvar("db", 3, &variable_bank);
 	ASSERT(NULL != tmp);
 	ASSERT(0 != tmp->data_size);
+
+	// Add db with signeddata PKCS7 format. 
+	printf("DB with signed data\n");
+	tmp = new_secvar("db", 3, dbsigneddata_auth, dbsigneddata_auth_len, 0);
+	ASSERT(0 == edk2_compat_validate(tmp));
+	list_add_tail(&update_bank, &tmp->link);
+	ASSERT(1 == list_length(&update_bank));
+
+	rc = edk2_compat_process(&variable_bank, &update_bank);
+	ASSERT(OPAL_SUCCESS == rc);
 
 	// Delete PK. 
 	printf("Delete PK\n");
