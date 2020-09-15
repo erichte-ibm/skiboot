@@ -33,6 +33,7 @@
 #include <mbedtls/asn1.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
+#include <mbedtls/oid.h>
 
 /**
  * \name PKCS7 Error codes
