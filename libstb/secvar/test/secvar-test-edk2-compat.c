@@ -4,7 +4,7 @@
 #include "../backend/edk2-compat.c"
 #include "../backend/edk2-compat-process.c"
 #include "../secvar_util.c"
-#define MBEDTLS_PKCS7_USE_C
+#define MBEDTLS_PKCS7_C
 #include "../../crypto/pkcs7/pkcs7.c"
 #include "./data/edk2_test_data.h"
 #include "./data/PK1.h"
