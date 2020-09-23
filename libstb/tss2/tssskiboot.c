@@ -130,7 +130,7 @@ int tss_nv_read(TPMI_RH_NV_INDEX nv_index, void *buffer,
 	in->authHandle = nv_index;
 
 	buffer_remaining = buffer_size;
-	while (buffer_size > 0) {
+	while (buffer_remaining > 0) {
 		in->offset = offset;
 		in->size = MIN(TSS_MAX_NV_BUFFER_SIZE, buffer_remaining);
 
