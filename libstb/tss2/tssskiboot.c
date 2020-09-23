@@ -100,6 +100,7 @@ int tss_nv_read(TPMI_RH_NV_INDEX nv_index, void *buffer,
 	NV_Read_Out *out = NULL;
 	NV_Read_In *in = NULL;
 	TPM_RC rc = OPAL_SUCCESS;
+	int64_t buffer_remaining;
 
 	if (!buffer) {
 		rc = OPAL_PARAMETER;
@@ -128,9 +129,10 @@ int tss_nv_read(TPMI_RH_NV_INDEX nv_index, void *buffer,
 	in->nvIndex = nv_index;
 	in->authHandle = nv_index;
 
+	buffer_remaining = buffer_size;
 	while (buffer_size > 0) {
 		in->offset = offset;
-		in->size = MIN(TSS_MAX_NV_BUFFER_SIZE, buffer_size);
+		in->size = MIN(TSS_MAX_NV_BUFFER_SIZE, buffer_remaining);
 
 		rc = TSS_Execute(context,
 				 (RESPONSE_PARAMETERS *) out,
@@ -147,7 +149,7 @@ int tss_nv_read(TPMI_RH_NV_INDEX nv_index, void *buffer,
 
 		memcpy(buffer, out->data.b.buffer, in->size);
 		buffer += TSS_MAX_NV_BUFFER_SIZE;
-		buffer_size -= TSS_MAX_NV_BUFFER_SIZE;
+		buffer_remaining -= TSS_MAX_NV_BUFFER_SIZE;
 		offset += TSS_MAX_NV_BUFFER_SIZE;
 	}
 
@@ -171,6 +173,7 @@ int tss_nv_write(TPMI_RH_NV_INDEX nv_index, void *buffer,
 	TSS_CONTEXT *context = NULL;
 	NV_Write_In *in = NULL;
 	TPM_RC rc = OPAL_SUCCESS;
+	int64_t buffer_remaining;
 
 	if (!buffer) {
 		rc = OPAL_PARAMETER;
@@ -193,10 +196,11 @@ int tss_nv_write(TPMI_RH_NV_INDEX nv_index, void *buffer,
 	in->nvIndex = nv_index;
 	in->authHandle = TPM_RH_PLATFORM;
 
-	while (buffer_size > 0) {
+	buffer_remaining = buffer_size;
+	while (buffer_remaining > 0) {
 		in->offset = offset;
 		rc = TSS_TPM2B_Create(&in->data.b, buffer,
-				      MIN(TSS_MAX_NV_BUFFER_SIZE, buffer_size),
+				      MIN(TSS_MAX_NV_BUFFER_SIZE, buffer_remaining),
 				      sizeof(in->data.t.buffer));
 
 		if (rc) {
@@ -211,11 +215,13 @@ int tss_nv_write(TPMI_RH_NV_INDEX nv_index, void *buffer,
 				 TPM_CC_NV_Write,
 				 TPM_RS_PW, NULL, 0,
 				 TPM_RH_NULL, NULL, 0);
-		if (rc)
+		if (rc) {
 			tss_error_trace("tss_nv_write", rc);
+			goto cleanup;
+		}
 
 		buffer += TSS_MAX_NV_BUFFER_SIZE;
-		buffer_size -= TSS_MAX_NV_BUFFER_SIZE;
+		buffer_remaining -= TSS_MAX_NV_BUFFER_SIZE;
 		offset += TSS_MAX_NV_BUFFER_SIZE;
 	}
 
