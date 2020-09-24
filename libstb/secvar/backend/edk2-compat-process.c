@@ -541,7 +541,6 @@ static int verify_signature(const struct efi_variable_authentication_2 *auth,
 
 		/* If you find a signing certificate, you are done */
 		if (rc == 0) {
-			prlog(PR_INFO, "Signature Verification passed\n");
 			mbedtls_x509_crt_free(&x509);
 			break;
 		}
@@ -752,8 +751,10 @@ int process_update(const struct secvar *update, char **newesl,
 				      avar);
 
 		/* Break if signature verification is successful */
-		if (rc == OPAL_SUCCESS)
+		if (rc == OPAL_SUCCESS) {
+			prlog(PR_INFO, "Signature for %s verified by %s\n", update->key, key_authority[i]);
 			break;
+		}
 	}
 
 out:
