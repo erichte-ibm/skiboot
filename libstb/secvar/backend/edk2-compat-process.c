@@ -750,8 +750,10 @@ int process_update(const struct secvar *update, char **newesl,
 				      avar);
 
 		/* Break if signature verification is successful */
-		if (rc == OPAL_SUCCESS)
+		if (rc == OPAL_SUCCESS) {
+			prlog(PR_INFO, "Key %s successfully verified by authority %s\n", update->key, key_authority[i]);
 			break;
+		}
 	}
 
 out:
