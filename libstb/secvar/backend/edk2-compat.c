@@ -217,6 +217,17 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		copy_bank_list(variable_bank, &staging_bank);
 	}
 
+	var = find_secvar("PK", 3, variable_bank);
+	if (!var) {
+		rc = OPAL_INTERNAL_ERROR;
+		goto cleanup;
+	}
+
+	if (var->data_size == 0)
+		setup_mode = true;
+	else
+		setup_mode = false;
+
 cleanup:
 	/*
 	 * For any failure in processing update queue, we clear the update bank
