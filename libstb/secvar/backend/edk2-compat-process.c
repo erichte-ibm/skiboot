@@ -327,6 +327,8 @@ int validate_esl_list(const char *key, const char *esl, const size_t size)
 		}
 	}
 
+	free(data);
+
 	prlog(PR_INFO, "Total ESLs are %d\n", rc);
 	return rc;
 }
@@ -750,8 +752,10 @@ int process_update(const struct secvar *update, char **newesl,
 				      avar);
 
 		/* Break if signature verification is successful */
-		if (rc == OPAL_SUCCESS)
+		if (rc == OPAL_SUCCESS) {
+			prlog(PR_INFO, "Key %s successfully verified by authority %s\n", update->key, key_authority[i]);
 			break;
+		}
 	}
 
 out:
