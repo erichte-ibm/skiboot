@@ -101,10 +101,12 @@ static int edk2_compat_process(struct list_head *variable_bank,
 {
 	struct secvar *var = NULL;
 	struct secvar *tsvar = NULL;
+	struct secvar *pkvar = NULL;
 	struct efi_time timestamp;
 	char *newesl = NULL;
 	int neweslsize;
 	int rc = 0;
+	bool ispkupdated = false;
 
 	prlog(PR_INFO, "Setup mode = %d\n", setup_mode);
 
@@ -194,13 +196,19 @@ static int edk2_compat_process(struct list_head *variable_bank,
 		 * If the PK is updated, update the secure boot state of the
 		 * system at the end of processing
 		 */
-		if (key_equals(var->key, "PK")) {
+		if (key_equals(var->key, "PK"))
+			ispkupdated = true;
+	}
+
+	if (rc == 0) {
+		if (ispkupdated) {
 			/*
 			 * PK is tied to a particular firmware image by mapping it with
 			 * hw-key-hash of that firmware. When PK is updated, hw-key-hash
 			 * is updated. And when PK is deleted, delete hw-key-hash as well
 			 */
-			if(neweslsize == 0) {
+			pkvar = find_secvar("PK", 3, &staging_bank);
+			if(pkvar->data_size == 0) {
 				setup_mode = true;
 				delete_hw_key_hash(&staging_bank);
 			} else  {
@@ -209,9 +217,6 @@ static int edk2_compat_process(struct list_head *variable_bank,
 			}
 			prlog(PR_DEBUG, "setup mode is %d\n", setup_mode);
 		}
-	}
-
-	if (rc == 0) {
 		/* Update the variable bank with updated working copy */
 		clear_bank_list(variable_bank);
 		copy_bank_list(variable_bank, &staging_bank);
