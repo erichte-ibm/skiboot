@@ -19,6 +19,7 @@
 #include "./data/multipleDB.h"
 #include "./data/multiplePK.h"
 #include "./data/dbx.h"
+#include "./data/dbxcert.h"
 #include "./data/dbxsha512.h"
 #include "./data/dbxmalformed.h"
 
@@ -136,7 +137,7 @@ int run_test()
 	ASSERT(2 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PARAMETER == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	rc = edk2_compat_post_process(&variable_bank, &update_bank);
@@ -155,7 +156,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(2 == list_length(&update_bank));
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PERMISSION == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	rc = edk2_compat_post_process(&variable_bank, &update_bank);
@@ -189,7 +190,7 @@ int run_test()
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PERMISSION == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	tmp = find_secvar("db", 3, &variable_bank);
@@ -270,7 +271,7 @@ int run_test()
 	ASSERT(NULL != tmp);
 	ASSERT(0 != tmp->data_size);
 
-	/* Add invalid KEK, .process(), should fail. */
+	/* Add invalid KEK, .process(), should fail. Timestamp check failure. */
 	printf("Add invalid KEK\n");
 	tmp = new_secvar("KEK", 4, InvalidKEK_auth, InvalidKEK_auth_len, 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
@@ -278,7 +279,7 @@ int run_test()
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PERMISSION == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	tmp = find_secvar("KEK", 4, &variable_bank);
@@ -293,7 +294,7 @@ int run_test()
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PARAMETER == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	tmp = find_secvar("KEK", 4, &variable_bank);
@@ -315,7 +316,7 @@ int run_test()
 	ASSERT(2 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PERMISSION == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 
@@ -372,7 +373,7 @@ int run_test()
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(2 == list_length(&update_bank));
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PARAMETER == rc);
 	ASSERT(6 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	rc = edk2_compat_post_process(&variable_bank, &update_bank);
@@ -411,7 +412,7 @@ int run_test()
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PARAMETER == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 	tmp = find_secvar("PK", 3, &variable_bank);
@@ -427,7 +428,7 @@ int run_test()
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PARAMETER == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 
@@ -448,13 +449,13 @@ int run_test()
 
 	/* We do not support cert as dbx. */
 	printf("Add db(cert) as dbx\n");
-	tmp = new_secvar("dbx", 4, DB_auth, sizeof(DB_auth), 0);
+	tmp = new_secvar("dbx", 4, dbx_cert_auth, sizeof(dbx_cert_auth), 0);
 	ASSERT(0 == edk2_compat_validate(tmp));
 	list_add_tail(&update_bank, &tmp->link);
 	ASSERT(1 == list_length(&update_bank));
 
 	rc = edk2_compat_process(&variable_bank, &update_bank);
-	ASSERT(OPAL_SUCCESS != rc);
+	ASSERT(OPAL_PARAMETER == rc);
 	ASSERT(5 == list_length(&variable_bank));
 	ASSERT(0 == list_length(&update_bank));
 
