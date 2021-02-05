@@ -27,7 +27,7 @@ static struct {
 	{ IBM_SECUREBOOT_V2, "ibm,secureboot-v2" },
 };
 
-static void secureboot_enforce(void)
+void secureboot_enforce(void)
 {
 	/* Sanity check */
 	if (!secure_mode)
@@ -60,6 +60,11 @@ bool secureboot_is_compatible(struct dt_node *node, int *version, const char **c
 		}
 	}
 	return false;
+}
+
+bool is_fw_secureboot(void)
+{
+	return secure_mode;
 }
 
 void secureboot_init(void)
